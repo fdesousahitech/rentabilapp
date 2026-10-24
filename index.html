@@ -171,6 +171,8 @@ tr.sep td { border-bottom: 0; padding-top: 14px; font-family: var(--font-body); 
           <div class="field"><label for="duree">Durée</label><div class="ctrl"><input id="duree" type="number" step="1" value="20"><span class="u">ans</span></div></div>
           <div class="field"><label for="assurPct">Assurance emprunteur<small>sur capital initial</small></label><div class="ctrl"><input id="assurPct" type="number" step="0.01" value="0.30"><span class="u">%/an</span></div></div>
           <div class="field"><label for="fraisBancaires">Frais de dossier et garantie</label><div class="ctrl"><input id="fraisBancaires" type="number" step="100" value="2500"><span class="u">€</span></div></div>
+          <div class="field check"><label for="ira">Indemnités de remboursement anticipé à la revente<small>3 % du capital restant dû, plafonnées à 6 mois d'intérêts</small></label><input id="ira" type="checkbox" checked></div>
+          <p class="hint" id="finInfo"></p>
         </div>
       </details>
 
@@ -251,6 +253,11 @@ tr.sep td { border-bottom: 0; padding-top: 14px; font-family: var(--font-body); 
         <div class="scroll"><table id="synth"></table></div>
       </section>
 
+      <section class="panel" aria-labelledby="t-sensi">
+        <div class="panel-head"><h2 id="t-sensi">Effet de l'apport</h2><span class="hint">TRI des fonds propres et trésorerie mensuelle moyenne après impôt</span></div>
+        <div class="scroll"><table id="sensi"></table></div>
+      </section>
+
       <section class="panel chart" aria-labelledby="t-chart">
         <div class="panel-head"><h2 id="t-chart">Trésorerie cumulée après impôt</h2><span class="hint">Effort d'épargne si négatif, hors revente</span></div>
         <div id="chart"></div>
@@ -270,6 +277,7 @@ tr.sep td { border-bottom: 0; padding-top: 14px; font-family: var(--font-body); 
           <p><strong>LMNP.</strong> Micro-BIC avec abattement de 50 % jusqu'à 77 700 € de recettes. Au réel, frais d'acquisition déduits la première année, amortissement du bâti, des travaux et du mobilier. L'amortissement ne peut pas créer de déficit : l'excédent est reporté sans limite de durée. Depuis la loi de finances 2025, les amortissements du bâti et des travaux déduits sont réintégrés dans le calcul de la plus-value. Au-delà de 23 000 € de recettes, le statut LMP peut s'appliquer : il n'est pas simulé.</p>
           <p><strong>SCI à l'IS.</strong> Toutes les charges, les frais d'acquisition et les amortissements sont déductibles ; les déficits sont reportables sans limite. IS à 15 % jusqu'à 42 500 € de bénéfice puis 25 %. La plus-value de cession est calculée sur la valeur nette comptable. Les flux annuels sont supposés transiter par le compte courant d'associé ; à la sortie, les bénéfices accumulés sont distribués et soumis à la flat tax.</p>
           <p><strong>Jeanbrun (article 31 du CGI, loi de finances 2026).</strong> Location nue au réel, en résidence principale, dans un immeuble collectif, logement acquis entre le 21 février 2026 et le 31 décembre 2028, avec engagement de location de 9 ans. Amortissement annuel sur 80 % de la valeur (prix + travaux) : neuf 3,5 / 4,5 / 5,5 %, ancien avec travaux d'au moins 30 % du prix 3 / 3,5 / 4 %, plafonné à 8 000 / 10 000 / 12 000 € par an selon le niveau de loyer. Le déficit s'impute sur le revenu global dans la limite de 10 700 €.</p>
+          <p><strong>Financement.</strong> Le crédit couvre le coût total de l'opération diminué de l'apport, avec des mensualités constantes et une assurance calculée sur le capital initial. La trésorerie déduit chaque année les intérêts, le capital remboursé et l'assurance. Les intérêts, l'assurance et les frais de dossier sont déductibles au réel et à l'IS. À la revente, le capital restant dû est soldé, avec les indemnités de remboursement anticipé si l'option est cochée. Le TRI porte sur les fonds personnels : apport à l'an 0, efforts d'épargne ou excédents annuels, puis produit net de revente. Le TRI en achat comptant reprend les mêmes hypothèses sans crédit ; l'écart entre les deux mesure l'effet de levier.</p>
           <p><strong>Plus-value des particuliers.</strong> 19 % d'impôt et 17,2 % de prélèvements sociaux, abattements pour durée de détention à partir de la 6<sup>e</sup> année (exonération à 22 ans pour l'impôt, 30 ans pour les prélèvements sociaux), forfaits de 7,5 % pour les frais d'acquisition et de 15 % pour les travaux au-delà de 5 ans, surtaxe au-delà de 50 000 € sans lissage.</p>
           <p><strong>Simplifications.</strong> Un seul foyer fiscal détenant 100 % des parts, TMI constante, pas d'autres revenus fonciers, pas d'expiration des déficits reportables, pas de renouvellement du mobilier, pas de reprise chiffrée en cas de rupture de l'engagement Jeanbrun. Les taux de prélèvements sociaux (18,6 % en LMNP, flat tax à 31,4 %) suivent la LFSS 2026 et les modalités du dispositif Jeanbrun dans l'ancien attendent encore leur doctrine administrative : vérifiez-les avant toute décision. Ce simulateur ne remplace pas l'avis d'un conseiller fiscal.</p>
         </div>
@@ -478,7 +486,7 @@ tr.sep td { border-bottom: 0; padding-top: 14px; font-family: var(--font-body); 
         cumNetIS += r - impot;
       }
 
-      years.push({ y, loyers, charges, interets: interets + assur, amort, resultat, impot, cfAvant, cfApres: cfAvant - impot, crd });
+      years.push({ y, loyers, charges, interets: interets + assur, capital, amort, resultat, impot, cfAvant, cfApres: cfAvant - impot, crd });
     }
 
     // Sortie
@@ -506,7 +514,11 @@ tr.sep td { border-bottom: 0; padding-top: 14px; font-family: var(--font-body); 
       const r = plusValueParticuliers(p, venteNet, travauxRetenus, reintegre);
       pv = r.pv; impotSortie = r.impot;
     }
-    const netSortie = venteNet - crdFinal - impotSortie;
+    const ira = p.ira && crdFinal > 0 ? Math.min(0.03 * crdFinal, crdFinal * p.taux / 100 / 2) : 0;
+    const netSortie = venteNet - crdFinal - ira - impotSortie;
+    let cum = 0, effortMax = 0;
+    years.forEach(o => { cum += o.cfApres; effortMax = Math.min(effortMax, cum); });
+    const coutCredit = emprunt > 0 ? years.reduce((s, o) => s + o.interets, 0) + p.fraisBancaires + ira : 0;
 
     const flux = [-apport].concat(years.map(o => o.cfApres));
     flux[H] += netSortie;
@@ -525,7 +537,12 @@ tr.sep td { border-bottom: 0; padding-top: 14px; font-family: var(--font-body); 
     return {
       code, regime, notes, eligible: !isJb || jb.eligible,
       cout, emprunt, apport, mensualite: loan.mensualite + assurance / 12,
-      loyerMensuel, years, venteNet, crdFinal, pv, impotSortie, netSortie,
+      interetsTotaux: loan.interets.reduce((s, v) => s + v, 0),
+      loyerMensuel, years, venteNet, crdFinal, ira, pv, impotSortie, netSortie,
+      coutCredit, effortMax: -effortMax,
+      tauxApport: apport / cout,
+      fondsInvestis: apport + years.reduce((s, o) => s + Math.max(0, -o.cfApres), 0),
+      multiple: (netSortie + years.reduce((s, o) => s + Math.max(0, o.cfApres), 0)) / (apport + years.reduce((s, o) => s + Math.max(0, -o.cfApres), 0)),
       rendBrut: y1.loyers / prixRevient,
       rendNet: (y1.loyers - y1.charges) / cout,
       rendNetNet: years.reduce((s, o) => s + (o.loyers - o.charges - o.impot), 0) / H / cout,
@@ -577,6 +594,45 @@ tr.sep td { border-bottom: 0; padding-top: 14px; font-family: var(--font-body); 
   const pct = v => v == null || !isFinite(v) ? "—" : (v * 100).toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " %";
   const fmt = v => eur.format(Math.round(v) || 0);
   const cls = v => v < -0.5 ? ' class="neg"' : "";
+  function formatCell(v, kind) {
+    if (kind === "pct") return pct(v);
+    if (kind === "x") return v.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " x";
+    if (kind === "pts") return (v >= 0 ? "+" : "") + (v * 100).toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " pt";
+    return fmt(v);
+  }
+
+  function renderFinInfo(p, res) {
+    const r = res[0];
+    document.getElementById("finInfo").textContent = r.emprunt > 0
+      ? `Location nue : ${fmt(r.emprunt)} empruntés sur ${p.duree} ans, mensualité ${fmt(r.mensualite)}, apport ${pct(r.tauxApport)} du coût total. Intérêts sur toute la durée du prêt : ${fmt(r.interetsTotaux)}.`
+      : "Achat comptant : l'apport couvre la totalité du coût de l'opération.";
+  }
+
+  // Apports testés : de 0 au comptant, en part du coût de la location nue
+  function renderSensibilite(p) {
+    const ref = simulate("nu", Object.assign({}, p, { apport: 0 }), "reel");
+    const frais = ref.cout - p.prix - p.travaux;
+    const niveaux = [
+      ["Aucun apport", 0],
+      ["Frais couverts", frais],
+      ["20 % du coût", 0.2 * ref.cout],
+      ["40 % du coût", 0.4 * ref.cout],
+      ["60 % du coût", 0.6 * ref.cout],
+      ["Comptant", Infinity]
+    ];
+    let h = "<thead><tr><th>Apport</th>" + REGIMES.map(R => `<th><span class="reg"><span class="dot" style="background:${R.color}"></span>${R.label}</span></th>`).join("") + "</tr></thead><tbody>";
+    niveaux.forEach(([label, montant]) => {
+      const res = run(Object.assign({}, p, { apport: montant }));
+      const tris = res.filter(r => r.eligible && r.tri != null).map(r => r.tri);
+      const top = Math.max(...tris);
+      h += `<tr><td>${label}<br><span class="hint">${isFinite(montant) ? fmt(montant) : fmt(ref.cout)}</span></td>` + res.map(r => {
+        if (!r.eligible) return `<td class="na">—</td>`;
+        const best = r.tri != null && Math.abs(r.tri - top) < 1e-6 && tris.length > 1;
+        return `<td${best ? ' class="best"' : ""}>${pct(r.tri)}<br><span${cls(r.cfMoyApres)}>${fmt(r.cfMoyApres)}/mois</span></td>`;
+      }).join("") + "</tr>";
+    });
+    document.getElementById("sensi").innerHTML = h + "</tbody>";
+  }
 
   function renderJbInfo(p) {
     const jb = jeanbrunParams(p);
@@ -594,7 +650,7 @@ tr.sep td { border-bottom: 0; padding-top: 14px; font-family: var(--font-body); 
     document.getElementById("kpis").innerHTML = [
       ["Meilleur TRI", pct(best.tri), label(best.code)],
       ["Meilleure trésorerie", fmt(bestCf.cfMoyApres) + "/mois", label(bestCf.code) + ", moyenne après impôt"],
-      ["Rendement brut", pct(nu.rendBrut), "loyer nu sur prix de revient"],
+      ["Effet de levier", best.tri != null && best.triComptant != null ? formatCell(best.tri - best.triComptant, "pts") : "—", label(best.code) + ", TRI comptant " + pct(best.triComptant)],
       ["Mensualité", fmt(nu.mensualite), "assurance comprise, " + fmt(nu.emprunt) + " empruntés"]
     ].map(([k, v, s]) => `<div class="kpi"><span class="k">${k}</span><span class="v">${v}</span><span class="s">${s}</span></div>`).join("");
     document.getElementById("synthHint").textContent = `${p.horizon} ans, TMI ${p.tmi} %`;
@@ -602,9 +658,12 @@ tr.sep td { border-bottom: 0; padding-top: 14px; font-family: var(--font-body); 
 
   function renderSynth(res) {
     const rows = [
-      ["sep", "Investissement"],
+      ["sep", "Investissement et financement"],
       ["Coût total de l'opération", r => r.cout, "eur"],
+      ["Apport", r => r.apport, "eur"],
       ["Montant emprunté", r => r.emprunt, "eur"],
+      ["Mensualité, assurance comprise", r => r.mensualite, "eur"],
+      ["Coût du crédit sur la détention", r => r.coutCredit, "eur", "min"],
       ["Loyer mensuel retenu", r => r.loyerMensuel, "eur"],
       ["sep", "Rendement"],
       ["Rendement brut", r => r.rendBrut, "pct", "max"],
@@ -614,15 +673,21 @@ tr.sep td { border-bottom: 0; padding-top: 14px; font-family: var(--font-body); 
       ["Avant impôt, moyenne", r => r.cfMoyAvant, "eur", "max"],
       ["Après impôt, année 1", r => r.cf1Apres, "eur", "max"],
       ["Après impôt, moyenne", r => r.cfMoyApres, "eur", "max"],
+      ["Effort d'épargne cumulé maximal", r => r.effortMax, "eur", "min"],
       ["sep", "Revente"],
       ["Prix de revente net de frais", r => r.venteNet, "eur"],
       ["Capital restant dû", r => r.crdFinal, "eur"],
+      ["Indemnités de remboursement anticipé", r => r.ira, "eur"],
       ["Plus-value imposable", r => Math.max(0, r.pv), "eur"],
       ["Impôt de sortie", r => r.impotSortie, "eur", "min"],
       ["sep", "Bilan"],
       ["Impôts cumulés, sortie comprise", r => r.impots, "eur", "min"],
       ["Enrichissement net", r => r.enrichissement, "eur", "max"],
-      ["TRI des fonds propres", r => r.tri, "pct", "max"]
+      ["Fonds personnels investis", r => r.fondsInvestis, "eur", "min"],
+      ["Multiple des fonds investis", r => r.multiple, "x", "max"],
+      ["TRI des fonds propres", r => r.tri, "pct", "max"],
+      ["TRI en achat comptant", r => r.triComptant, "pct", "max"],
+      ["Effet de levier du crédit", r => r.tri != null && r.triComptant != null ? r.tri - r.triComptant : null, "pts", "max"]
     ];
     let h = "<thead><tr><th></th>" + res.map((r, i) => {
       const R = REGIMES[i];
@@ -637,9 +702,9 @@ tr.sep td { border-bottom: 0; padding-top: 14px; font-family: var(--font-body); 
       const target = dir === "max" ? Math.max(...valid) : dir === "min" ? Math.min(...valid) : null;
       h += `<tr><td>${label}</td>` + vals.map(v => {
         if (v == null || !isFinite(v)) return `<td class="na">—</td>`;
-        const best = target != null && Math.abs(v - target) < 0.5 * (kind === "pct" ? 1e-6 : 1) && valid.length > 1;
-        const c = best ? ' class="best"' : v < -0.5 ? ' class="neg"' : "";
-        return `<td${c}>${kind === "pct" ? pct(v) : fmt(v)}</td>`;
+        const best = target != null && Math.abs(v - target) < (kind === "eur" ? 0.5 : 1e-6) && valid.length > 1;
+        const c = best ? ' class="best"' : (kind === "eur" ? v < -0.5 : v < 0) ? ' class="neg"' : "";
+        return `<td${c}>${formatCell(v, kind)}</td>`;
       }).join("") + "</tr>";
     });
     document.getElementById("synth").innerHTML = h + "</tbody>";
@@ -693,11 +758,11 @@ tr.sep td { border-bottom: 0; padding-top: 14px; font-family: var(--font-body); 
     const r = res.find(o => o.code === currentTab);
     if (!r.eligible) { document.getElementById("detail").innerHTML = `<tbody><tr><td class="na">${r.notes[0]}</td></tr></tbody>`; return; }
     const impotLabel = r.code === "sciis" ? "IS" : "Impôt (− = économie)";
-    let h = `<thead><tr><th>Année</th><th>Loyers</th><th>Charges</th><th>Intérêts et assurance</th><th>Amortissement déduit</th><th>Résultat fiscal</th><th>${impotLabel}</th><th>Trésorerie avant impôt</th><th>Trésorerie après impôt</th><th>Capital restant dû</th></tr></thead><tbody>`;
+    let h = `<thead><tr><th>Année</th><th>Loyers</th><th>Charges</th><th>Intérêts et assurance</th><th>Capital remboursé</th><th>Amortissement déduit</th><th>Résultat fiscal</th><th>${impotLabel}</th><th>Trésorerie avant impôt</th><th>Trésorerie après impôt</th><th>Capital restant dû</th></tr></thead><tbody>`;
     r.years.forEach(o => {
-      h += `<tr><td>${o.y}</td><td>${fmt(o.loyers)}</td><td>${fmt(o.charges)}</td><td>${fmt(o.interets)}</td><td>${fmt(o.amort)}</td><td${cls(o.resultat)}>${fmt(o.resultat)}</td><td${cls(-o.impot)}>${fmt(o.impot)}</td><td${cls(o.cfAvant)}>${fmt(o.cfAvant)}</td><td${cls(o.cfApres)}>${fmt(o.cfApres)}</td><td>${fmt(o.crd)}</td></tr>`;
+      h += `<tr><td>${o.y}</td><td>${fmt(o.loyers)}</td><td>${fmt(o.charges)}</td><td>${fmt(o.interets)}</td><td>${fmt(o.capital)}</td><td>${fmt(o.amort)}</td><td${cls(o.resultat)}>${fmt(o.resultat)}</td><td${cls(-o.impot)}>${fmt(o.impot)}</td><td${cls(o.cfAvant)}>${fmt(o.cfAvant)}</td><td${cls(o.cfApres)}>${fmt(o.cfApres)}</td><td>${fmt(o.crd)}</td></tr>`;
     });
-    h += `<tr><td>Revente</td><td colspan="5" class="na">Prix net ${fmt(r.venteNet)}, plus-value ${fmt(Math.max(0, r.pv))}</td><td>${fmt(r.impotSortie)}</td><td colspan="2">${fmt(r.netSortie)}</td><td>${fmt(r.crdFinal)}</td></tr>`;
+    h += `<tr><td>Revente</td><td colspan="6" class="na">Prix net ${fmt(r.venteNet)}, plus-value ${fmt(Math.max(0, r.pv))}, remboursement anticipé ${fmt(r.crdFinal)} + indemnités ${fmt(r.ira)}</td><td>${fmt(r.impotSortie)}</td><td colspan="2">${fmt(r.netSortie)}</td><td>${fmt(r.crdFinal)}</td></tr>`;
     document.getElementById("detail").innerHTML = h + "</tbody>";
   }
 
@@ -713,8 +778,12 @@ tr.sep td { border-bottom: 0; padding-top: 14px; font-family: var(--font-body); 
   function update() {
     const p = readParams();
     const res = run(p);
+    const comptant = run(Object.assign({}, p, { apport: Infinity }));
+    res.forEach((r, i) => { r.triComptant = comptant[i].tri; });
     last = res;
     renderJbInfo(p);
+    renderFinInfo(p, res);
+    renderSensibilite(p);
     renderKpis(p, res);
     renderSynth(res);
     renderChart(res);
