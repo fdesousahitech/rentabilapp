@@ -110,6 +110,13 @@ label.bouton:hover { border-color: var(--accent); }
   .resume-mobile { display: flex; position: fixed; left: 0; right: 0; bottom: 0; z-index: 6; justify-content: space-between; align-items: center; gap: 12px; background: var(--surface); border-top: 1px solid var(--line); padding: 10px max(16px, env(safe-area-inset-right, 0px)) calc(10px + env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px)); font-size: 13px; }
   .resume-mobile.cache { display: none; }
 }
+.marche-lieu { margin: 0; }
+.marche { margin: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 10px 20px; }
+.marche div { display: grid; gap: 2px; padding-block: 6px; border-bottom: 1px solid var(--line); }
+.marche dt { font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); }
+.marche dd { margin: 0; font-weight: 500; display: grid; gap: 2px; font-variant-numeric: tabular-nums; }
+.marche dd .hint { font-weight: 400; }
+.alerts li.info { background: var(--accent-soft); color: var(--fg); }
 .cascade .barre-cell { width: 45%; min-width: 160px; }
 .barre .seg.total { background: var(--accent); }
 td .def, th .def { text-decoration: underline dotted; text-underline-offset: 3px; cursor: help; }
@@ -262,10 +269,21 @@ td.sel, tr.sel td { box-shadow: inset 0 0 0 2px var(--accent) !important; }
 
     <form class="inputs" id="form" autocomplete="off">
       <details class="group essentiel" open>
+        <summary>Localisation et surface</summary>
+        <div class="fields">
+          <div class="field" data-essentiel><label for="codePostal">Code postal</label><div class="ctrl"><input id="codePostal" type="text" inputmode="numeric" maxlength="5" pattern="[0-9]{5}" placeholder="69003" value="" data-texte></div></div>
+          <div class="field" data-essentiel><label for="commune">Commune</label><div class="ctrl"><select id="commune" data-texte><option value="">—</option></select></div></div>
+          <div class="field" data-essentiel><label for="typeLogement">Type de logement</label><div class="ctrl"><select id="typeLogement"><option value="appartement">Appartement</option><option value="maison">Maison</option></select></div></div>
+          <div class="field" data-essentiel><label for="surface">Surface habitable</label><div class="ctrl"><input id="surface" type="number" step="1" min="0" value="45"><span class="u">m²</span></div></div>
+        </div>
+      </details>
+
+      <details class="group essentiel" open>
         <summary>Bien et acquisition</summary>
         <div class="fields">
           <div class="field" data-essentiel><label for="type">Type de bien</label><div class="ctrl"><select id="type"><option value="ancien">Ancien</option><option value="neuf">Neuf (VEFA)</option></select></div></div>
           <div class="field" data-essentiel><label for="prix">Prix net vendeur</label><div class="ctrl"><input id="prix" type="number" step="1000" value="200000"><span class="u">€</span></div></div>
+          <div class="field"><label for="tauxDmto">Droits de mutation du département<small>5 % dans la plupart des départements depuis 2025</small></label><div class="ctrl"><input id="tauxDmto" type="number" step="0.1" value="5"><span class="u">%</span></div></div>
           <div class="field"><label for="notairePct">Frais de notaire<small>≈ 7,5 % ancien, 2,5 % neuf</small></label><div class="ctrl"><input id="notairePct" type="number" step="0.1" value="7.5"><span class="u">%</span></div></div>
           <div class="field"><label for="agence">Frais d'agence acquéreur</label><div class="ctrl"><input id="agence" type="number" step="500" value="0"><span class="u">€</span></div></div>
           <div class="field" data-essentiel><label for="travaux">Travaux initiaux</label><div class="ctrl"><input id="travaux" type="number" step="1000" value="60000"><span class="u">€</span></div></div>
@@ -375,6 +393,19 @@ td.sel, tr.sel td { box-shadow: inset 0 0 0 2px var(--accent) !important; }
         <div class="verdict-head"><p class="verdict-titre" id="verdictTitre"></p><span class="chip" id="verdictChip"></span></div>
         <ul class="verdict-lignes" id="verdictLignes"></ul>
         <ul class="alerts suggestions" id="suggestions"></ul>
+      </section>
+
+      <section class="panel" aria-labelledby="t-marche">
+        <div class="panel-head"><h2 id="t-marche">Marché local</h2><span class="hint">Valeurs indicatives, à confronter aux annonces et aux avis de valeur</span></div>
+        <div id="marcheCorps"></div>
+        <ul class="alerts" id="marcheAlertes"></ul>
+        <div class="btnrow" id="marcheActions" hidden>
+          <button type="button" id="btnLoyer">Utiliser le loyer estimé (charges comprises)</button>
+          <button type="button" id="btnValo">Utiliser l'évolution historique des prix</button>
+          <button type="button" id="btnNotaire">Utiliser les frais de notaire calculés</button>
+          <button type="button" id="btnSurface">Estimer mobilier, entretien et assurance d'après la surface</button>
+        </div>
+        <p class="hint" id="marcheSources"></p>
       </section>
 
       <section class="panel" id="panelBiens" aria-labelledby="t-biens" hidden>
@@ -492,7 +523,7 @@ td.sel, tr.sel td { box-shadow: inset 0 0 0 2px var(--accent) !important; }
       const el = document.getElementById(id);
       const v = id in valeurs ? valeurs[id] : defaults[id];
       if (el.type === "checkbox") p[id] = v === true || v === "true";
-      else if (el.tagName === "SELECT" && isNaN(parseFloat(v))) p[id] = v;
+      else if ("texte" in el.dataset || (el.tagName === "SELECT" && isNaN(parseFloat(v)))) p[id] = String(v);
       else p[id] = parseFloat(v) || 0;
     });
     p.horizon = Math.round(p.horizon);
@@ -1009,9 +1040,11 @@ td.sel, tr.sel td { box-shadow: inset 0 0 0 2px var(--accent) !important; }
     ids.forEach(id => {
       const el = document.getElementById(id);
       const v = id in valeurs ? valeurs[id] : defaults[id];
-      if (el.type === "checkbox") el.checked = v === true || v === "true"; else el.value = v;
+      if (id === "commune") el.dataset.voulue = v;
+      else if (el.type === "checkbox") el.checked = v === true || v === "true"; else el.value = v;
     });
     syncPret();
+    majCodePostal();
   }
 
   let suppressionEnAttente = null;
@@ -1193,6 +1226,132 @@ td.sel, tr.sel td { box-shadow: inset 0 0 0 2px var(--accent) !important; }
     if (last) renderChart(last);
   }));
 
+  // ---------- Marché local ----------
+
+  const marche = { statut: "vide", departements: new Map(), meta: null, cp: null, communes: [] };
+
+  function departementsDuCP(cp) {
+    if (cp.startsWith("20")) return ["2A", "2B"];
+    if (cp.startsWith("97")) return [cp.slice(0, 3)];
+    return [cp.slice(0, 2)];
+  }
+
+  async function chargerJSON(url) {
+    const res = await fetch(url);
+    if (!res.ok) throw Object.assign(new Error("HTTP " + res.status), { statut: res.status });
+    return res.json();
+  }
+
+  async function chargerDepartement(dep) {
+    if (marche.departements.has(dep)) return marche.departements.get(dep);
+    const promesse = chargerJSON(`donnees/marche/${dep}.json`).catch(e => { marche.departements.delete(dep); throw e; });
+    marche.departements.set(dep, promesse);
+    return promesse;
+  }
+
+  // Recherche les communes du code postal puis remplit la liste
+  async function majCodePostal(communeVoulue) {
+    const cp = document.getElementById("codePostal").value.trim();
+    const select = document.getElementById("commune");
+    if (!/^\d{5}$/.test(cp)) {
+      marche.cp = null; marche.communes = []; marche.statut = cp ? "invalide" : "vide";
+      select.innerHTML = `<option value="">—</option>`;
+      return;
+    }
+    if (cp === marche.cp && marche.statut === "ok") {
+      if (select.dataset.voulue && marche.communes.some(c => c.code === select.dataset.voulue)) select.value = select.dataset.voulue;
+      delete select.dataset.voulue;
+      return;
+    }
+    marche.cp = cp; marche.statut = "chargement";
+    renderMarche();
+    try {
+      if (!marche.meta) marche.meta = await chargerJSON("donnees/marche/meta.json").catch(() => null);
+      const dispo = marche.meta && marche.meta.disponibles;
+      const deps = await Promise.all(departementsDuCP(cp).map(d => dispo && !dispo.includes(d) ? null : chargerDepartement(d).catch(e => (e.statut === 404 ? null : Promise.reject(e)))));
+      if (cp !== document.getElementById("codePostal").value.trim()) return;
+      marche.communes = [];
+      deps.filter(Boolean).forEach(d => (d.codesPostaux[cp] || []).forEach(code => marche.communes.push({ code, dep: d, fiche: d.communes[code] })));
+      marche.communes.sort((a, b) => a.fiche.nom.localeCompare(b.fiche.nom, "fr"));
+      marche.statut = marche.communes.length ? "ok" : "introuvable";
+      select.innerHTML = marche.communes.length ? marche.communes.map(c => `<option value="${esc(c.code)}">${esc(c.fiche.nom)}</option>`).join("") : `<option value="">—</option>`;
+      const voulue = communeVoulue || select.dataset.voulue;
+      if (voulue && marche.communes.some(c => c.code === voulue)) select.value = voulue;
+      delete select.dataset.voulue;
+    } catch (e) {
+      marche.statut = "indisponible";
+    }
+    update();
+  }
+
+  // Données de la commune choisie, avec repli sur le département quand les ventes sont trop rares
+  function communeChoisie(p) {
+    const c = marche.communes.find(x => x.code === p.commune) || marche.communes[0];
+    if (!c) return null;
+    const fiche = JSON.parse(JSON.stringify(c.fiche));
+    const t = p.typeLogement === "maison" ? "maison" : "appartement";
+    const agg = c.dep.departementAgregat && c.dep.departementAgregat.prix[t];
+    if ((!fiche.prix[t] || fiche.prix[t].n < REGLES.marche.ventesMinimum) && agg) fiche.prix[t] = Object.assign({}, agg, { niveau: "departement", nCommune: fiche.prix[t] ? fiche.prix[t].n : 0 });
+    return { code: c.code, nom: fiche.nom, dep: c.dep.departement, fiche };
+  }
+
+  let estimationCourante = null;
+  function renderMarche(p) {
+    const corps = document.getElementById("marcheCorps");
+    const actions = document.getElementById("marcheActions");
+    estimationCourante = null;
+    actions.hidden = true;
+    const msg = t => { corps.innerHTML = `<p class="hint">${t}</p>`; document.getElementById("marcheAlertes").innerHTML = ""; };
+    if (marche.statut === "vide") return msg("Saisissez un code postal et une surface pour situer le projet sur son marché : prix des ventes récentes, loyers d'annonce, évolution des prix et frais de notaire.");
+    if (marche.statut === "invalide") return msg("Le code postal doit compter 5 chiffres.");
+    if (marche.statut === "chargement") return msg("Chargement des données du département…");
+    if (marche.statut === "indisponible") return msg("Les données de marché n'ont pas pu être chargées. Elles sont publiées avec l'application : ouvrez-la depuis son adresse web plutôt qu'en fichier local, ou réessayez plus tard.");
+    if (marche.statut === "introuvable") return msg(/^(57|67|68)/.test(marche.cp)
+      ? "Les ventes de Moselle, du Bas-Rhin et du Haut-Rhin ne sont pas publiées dans les données DVF (régime du livre foncier) : pas de référence de marché pour ce code postal."
+      : `Aucune commune connue pour le code postal ${esc(marche.cp)} dans les données de ventes.`);
+    const c = communeChoisie(p);
+    const est = Moteur.estimationMarche(c.fiche, p.typeLogement, p.surface);
+    estimationCourante = { est, c, p };
+    const s = p.surface;
+    const lignes = [];
+    const lieu = est && est.prix && est.prix.niveau === "departement" ? `département (${est.prix.nCommune} vente(s) seulement dans la commune)` : "commune";
+    if (est && est.prix) {
+      lignes.push(["Prix des ventes", `${fmt(est.prix.med)}/m² en médiane ; la moitié des ventes entre ${fmt(est.prix.q1)} et ${fmt(est.prix.q3)}/m²`, `${est.prix.n.toLocaleString("fr-FR")} ventes ${est.type === "maison" ? "de maisons" : "d'appartements"}, ${est.prix.periode}, ${lieu}`]);
+      if (s > 0) lignes.push(["Votre prix", `${fmt(p.prix / s)}/m², soit ${((p.prix / s / est.prix.med - 1) * 100).toLocaleString("fr-FR", { maximumFractionDigits: 0, signDisplay: "always" })} % par rapport à la médiane`, `valeur médiane pour ${s} m² : ${fmt(est.prix.valeur)}`]);
+      if (est.prix.evolution != null) lignes.push(["Évolution des prix", `${(est.prix.evolution * 100).toLocaleString("fr-FR", { maximumFractionDigits: 1, signDisplay: "always" })} % par an`, `tendance des médianes annuelles ${est.prix.anneesEvolution}, qui ne préjuge pas de l'avenir ; hypothèse saisie ${p.valo.toLocaleString("fr-FR")} %`]);
+    } else lignes.push(["Prix des ventes", "Pas assez de ventes comparables", ""]);
+    if (est && est.loyer) {
+      lignes.push(["Loyers d'annonce", `${est.loyer.m2.toLocaleString("fr-FR", { maximumFractionDigits: 1 })} €/m²` + (est.loyer.bas ? ` (entre ${est.loyer.bas.toLocaleString("fr-FR", { maximumFractionDigits: 1 })} et ${est.loyer.haut.toLocaleString("fr-FR", { maximumFractionDigits: 1 })} €/m²)` : ""), "charges comprises, logements vides" + (est.loyer.fiabilite ? `, estimation au niveau ${est.loyer.fiabilite}` : "")]);
+      if (s > 0) lignes.push(["Loyer estimé", `${fmt(est.loyer.mensuel)} par mois` + (est.loyer.bas ? ` (${fmt(est.loyer.mensuelBas)} à ${fmt(est.loyer.mensuelHaut)})` : ""), `pour ${s} m², charges comprises ; loyer saisi ${fmt(p.loyerNu)} hors charges`]);
+    } else lignes.push(["Loyers d'annonce", "Indisponibles pour cette commune", ""]);
+    if (est && est.rendementBrut) lignes.push(["Rendement brut du marché", pct(est.rendementBrut), "loyer d'annonce / prix médian, avant frais"]);
+    const fn = Moteur.fraisNotaire(p.prix, p.type, p.tauxDmto / 100);
+    lignes.push(["Frais de notaire", `${fmt(fn.total)}, soit ${pct(fn.taux)}`, `droits de mutation à ${p.tauxDmto.toLocaleString("fr-FR")} % pour le département, émoluments et débours ; saisi ${p.notairePct.toLocaleString("fr-FR")} %`]);
+    corps.innerHTML = `<p class="marche-lieu"><strong>${esc(c.nom)}</strong> <span class="hint">· ${esc(marche.cp)} · ${esc(c.code)} · ${p.typeLogement === "maison" ? "maison" : "appartement"} de ${s.toLocaleString("fr-FR")} m²</span></p>` +
+      `<dl class="marche">${lignes.map(([k, v, d]) => `<div><dt>${k}</dt><dd>${v}${d ? `<span class="hint">${esc(d)}</span>` : ""}</dd></div>`).join("")}</dl>`;
+    const alertes = Moteur.alertesMarche(p, est);
+    document.getElementById("marcheAlertes").innerHTML = alertes.map(a => `<li${a.niveau === "info" ? ' class="info"' : ""}>${esc(a.message)}</li>`).join("");
+    document.getElementById("btnLoyer").hidden = !(est && est.loyer && s > 0);
+    document.getElementById("btnValo").hidden = !(est && est.prix && est.prix.evolution != null);
+    document.getElementById("btnSurface").hidden = !(s > 0);
+    actions.hidden = false;
+    const meta = marche.meta;
+    document.getElementById("marcheSources").textContent = meta ? `Sources : ventes DVF ${meta.dvf.annees[0]}-${meta.dvf.annees[meta.dvf.annees.length - 1]} (DGFiP) et ${meta.loyers.titre} ; agrégats calculés le ${new Date(meta.genereLe).toLocaleDateString("fr-FR")}. Les loyers d'annonce sont en général plus élevés que les loyers signés.` : "";
+    return alertes;
+  }
+
+  function appliquer(champs) {
+    Object.entries(champs).forEach(([id, v]) => { document.getElementById(id).value = v; });
+    update();
+  }
+  document.getElementById("btnLoyer").addEventListener("click", () => { const e = estimationCourante && estimationCourante.est; if (e && e.loyer) appliquer({ loyerNu: Math.round(e.loyer.mensuel / 10) * 10 }); });
+  document.getElementById("btnValo").addEventListener("click", () => { const e = estimationCourante && estimationCourante.est; if (e && e.prix && e.prix.evolution != null) appliquer({ valo: Math.round(e.prix.evolution * 1000) / 10 }); });
+  document.getElementById("btnNotaire").addEventListener("click", () => { const p = readParams(); appliquer({ notairePct: Math.round(Moteur.fraisNotaire(p.prix, p.type, p.tauxDmto / 100).taux * 10000) / 100 }); });
+  document.getElementById("btnSurface").addEventListener("click", () => { const d = Moteur.defautsSurface(readParams().surface); appliquer({ mobilier: d.mobilier, entretien: d.entretien, pno: d.pno }); });
+
+  let timerCP = null;
+  document.getElementById("codePostal").addEventListener("input", () => { clearTimeout(timerCP); timerCP = setTimeout(() => majCodePostal(), 250); });
+
   let last = null, lastP = null;
   function update() {
     const p = readParams();
@@ -1210,6 +1369,8 @@ td.sel, tr.sel td { box-shadow: inset 0 0 0 2px var(--accent) !important; }
     renderFinInfo(p, res);
     renderSensibilite(p);
     renderVerdict(p, res);
+    const alertesMarche = renderMarche(p) || [];
+    if (alertesMarche.length) document.getElementById("verdictLignes").insertAdjacentHTML("beforeend", alertesMarche.filter(a => a.niveau === "alerte").map(a => `<li class="marche-alerte">${esc(a.message)}</li>`).join(""));
     renderKpis(p, res);
     renderSynth(res, erreurs);
     renderAnalyses(p, res);
@@ -1241,12 +1402,13 @@ td.sel, tr.sel td { box-shadow: inset 0 0 0 2px var(--accent) !important; }
   document.getElementById("reset").addEventListener("click", () => {
     ids.forEach(id => { const el = document.getElementById(id); if (el.type === "checkbox") el.checked = defaults[id]; else el.value = defaults[id]; });
     syncPret();
+    majCodePostal();
     update();
   });
 
   try {
     const saved = JSON.parse(localStorage.getItem(STORE_KEY) || "null");
-    if (saved) ids.forEach(id => { if (id in saved) { const el = document.getElementById(id); if (el.type === "checkbox") el.checked = saved[id]; else el.value = saved[id]; } });
+    if (saved) ids.forEach(id => { if (id in saved) { const el = document.getElementById(id); if (id === "commune") el.dataset.voulue = saved[id]; else if (el.type === "checkbox") el.checked = saved[id]; else el.value = saved[id]; } });
   } catch (e) {}
 
 
@@ -1416,6 +1578,19 @@ td.sel, tr.sel td { box-shadow: inset 0 0 0 2px var(--accent) !important; }
       const lines = doc.splitTextToSize("- " + txt(li.textContent), W - 2 * M);
       doc.text(lines, M, y + 3); y += lines.length * 4 + 1;
     });
+
+    const marcheItems = Array.from(document.querySelectorAll("#marcheCorps dl.marche > div"));
+    if (marcheItems.length) {
+      y = sectionTitle(doc, "Marché local : " + txt(document.querySelector("#marcheCorps .marche-lieu").textContent), y + 6) + 1;
+      doc.setFont("helvetica", "normal"); doc.setFontSize(8.5); doc.setTextColor(...PDF.ink);
+      marcheItems.forEach(it => {
+        const l = doc.splitTextToSize(txt(it.querySelector("dt").textContent + " : " + it.querySelector("dd").childNodes[0].textContent + " (" + (it.querySelector("dd .hint") ? it.querySelector("dd .hint").textContent : "") + ")").replace(" ()", ""), W - 2 * M);
+        doc.text(l, M, y + 3); y += l.length * 3.8 + 0.6;
+      });
+      doc.setFontSize(7.5); doc.setTextColor(...PDF.muted);
+      const src = doc.splitTextToSize(txt(document.getElementById("marcheSources").textContent), W - 2 * M);
+      doc.text(src, M, y + 3); y += src.length * 3.4;
+    }
 
     y = sectionTitle(doc, "Synthèse sur la durée de détention", y + 6);
     const synth = tableFromDom(document.getElementById("synth"));
@@ -1594,6 +1769,7 @@ td.sel, tr.sel td { box-shadow: inset 0 0 0 2px var(--accent) !important; }
   update();
   appliquerMode(modeInitial);
   renderSims();
+  majCodePostal();
 })();
 </script>
 </body>

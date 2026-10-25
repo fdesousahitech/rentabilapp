@@ -841,6 +841,11 @@
     if (p.valo > 4) alerte("valo", "Valorisation annuelle supérieure à 4 % : hypothèse optimiste sur 10 ans ou plus.");
     if (p.horizon < REGLES.jeanbrun.dureeEngagement) alerte("horizon", "Détention inférieure à 9 ans : l'engagement Jeanbrun n'est pas tenu.");
     if (p.typePret === "infine" && p.nanti <= 0) alerte("nanti", "Prêt in fine sans placement nanti : la banque en exige presque toujours un.");
+    if (p.codePostal && !/^\d{5}$/.test(p.codePostal)) err("codePostal", "Le code postal doit compter 5 chiffres.");
+    if (p.surface > 0 && p.prix > 0) {
+      const m2 = p.prix / p.surface;
+      if (m2 < 300 || m2 > 25000) alerte("surface", `Prix de ${e(m2)}/m² : vérifiez la surface ou le prix.`);
+    }
     if (!(p.revenusMensuels > 0)) alerte("revenusMensuels", "Renseignez vos revenus mensuels pour vérifier la faisabilité bancaire.");
     return out;
   }

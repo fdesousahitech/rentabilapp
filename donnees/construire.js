@@ -213,6 +213,7 @@ async function lireLoyers() {
   log(`DVF : années ${annees.join(", ")}, période récente ${recentes.join(", ")}`);
 
   let totalVentes = 0, communesAvecPrix = 0, communesAvecLoyer = 0, nbCommunes = 0;
+  const disponibles = [];
   await parallele(DEPARTEMENTS.map(dep => async () => {
     const communes = new Map();
     let ventes = [];
@@ -243,12 +244,14 @@ async function lireLoyers() {
     }
     Object.values(sortie.codesPostaux).forEach(l => l.sort());
     fs.writeFileSync(path.join(SORTIE, `${dep}.json`), JSON.stringify(sortie));
+    disponibles.push(dep);
     log(`  ${dep} : ${communes.size} communes, ${ventes.length} ventes retenues`);
   }), 6);
 
   const meta = {
     genereLe: new Date().toISOString(),
     departements: DEPARTEMENTS,
+    disponibles: DEPARTEMENTS.filter(d => disponibles.includes(d)),
     dvf: { source: "https://www.data.gouv.fr/datasets/demandes-de-valeurs-foncieres-geolocalisees/", annees, periodeRecente: `${recentes[0]}-${recentes[recentes.length - 1]}`, ventesRetenues: totalVentes },
     loyers: { source: loyers.page, titre: loyers.titre, ressources: loyers.ressources },
     couverture: { communes: nbCommunes, communesAvecPrix, communesAvecLoyer }
