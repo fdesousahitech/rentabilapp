@@ -328,3 +328,29 @@ test("scénarios : prudent < central < optimiste", () => {
   });
   proche(sc[1].res[0].tri, M.comparer(EXEMPLE)[0].tri, 1e-12);
 });
+
+// ---------- Où va l'argent et comparaison de biens ----------
+
+test("décomposition : la somme des postes égale l'enrichissement net", () => {
+  const cas = [EXEMPLE, avec({ typePret: "infine", nanti: 50000 }), avec({ differe: 12, typeDiffere: "total" }), avec({ horizon: 25 }), avec({ apport: Infinity })];
+  cas.forEach((p, i) => M.comparer(p, { sansComptant: true }).forEach(r => {
+    proche(M.decomposition(r).total, r.enrichissement, 0.5, `cas ${i} ${r.code}`);
+  }));
+});
+
+test("patrimoine net : relié à l'enrichissement par la fiscalité de sortie", () => {
+  M.comparer(avec({ typePret: "infine", nanti: 50000 }), { sansComptant: true }).forEach(r => {
+    const H = r.years.length;
+    const pat = r.years[H - 1].patrimoineNet;
+    proche(pat - r.ira - r.impotSortie + r.placementSortie, r.enrichissement, 0.5, r.code);
+  });
+});
+
+test("synthèse d'un bien : retient le régime au meilleur TRI", () => {
+  const s = M.syntheseBien(EXEMPLE);
+  const res = M.comparer(EXEMPLE, { sansComptant: true }).filter(r => r.eligible);
+  const best = res.reduce((a, b) => b.tri > a.tri ? b : a);
+  assert.equal(s.meilleur, best.code);
+  proche(s.tri, best.tri, 1e-12);
+  assert.ok(s.verdict.titre);
+});

@@ -372,7 +372,8 @@
         detail.push(`Impôt sur le revenu du foyer : revenu ${e(avant)} → ${e(apres)}, écart d'impôt ${e(irDiff)} ; prélèvements sociaux ${pc(tauxPS)} × ${e(imposable)} = ${e(ps)}`);
       }
 
-      years.push({ y, loyers, charges, interets: interets + assur, capital, deblocage, investissement, amort, resultat, imposable, deficitGlobal, impot, cfAvant, cfApres: cfAvant - impot, crd, detail });
+      const valeurBien = (p.prix + p.travaux) * Math.pow(1 + p.valo / 100, y);
+      years.push({ y, loyers, charges, interets: interets + assur, verse, assurance: assur, valeurBien, capital, deblocage, investissement, amort, resultat, imposable, deficitGlobal, impot, cfAvant, cfApres: cfAvant - impot, crd, detail });
     }
 
     // Reprises fiscales en fin de détention
@@ -421,8 +422,13 @@
     const placementSortie = nanti > 0 && H < p.duree ? placement(H) : 0;
     const netSortie = venteNet - crdFinal - ira - impotSortie + placementSortie;
 
+    // Patrimoine net en fin d'année : valeur nette de frais de revente − capital dû + trésorerie cumulée − fonds de départ,
+    // avant impôt de sortie et indemnités de remboursement anticipé
     let cum = 0, effortMax = 0;
-    years.forEach(o => { cum += o.cfApres; effortMax = Math.min(effortMax, cum); });
+    years.forEach(o => {
+      cum += o.cfApres; effortMax = Math.min(effortMax, cum);
+      o.patrimoineNet = o.valeurBien * (1 - p.fraisRevente / 100) - o.crd + cum - apport - nanti;
+    });
     const coutCredit = emprunt > 0 ? years.reduce((s, o) => s + o.interets, 0) + p.fraisBancaires + ira : 0;
     const flux = [-apport - nanti].concat(years.map(o => o.cfApres));
     flux[H] += netSortie;
@@ -705,6 +711,38 @@
     });
   }
 
+  // ---------- Où va l'argent ----------
+
+  // Décompose l'enrichissement net en postes dont la somme est exacte
+  function decomposition(r) {
+    const somme = k => r.years.reduce((s, o) => s + o[k], 0);
+    const deblocage = somme("deblocage");
+    const postes = [
+      { cle: "loyers", label: "Loyers encaissés", montant: somme("loyers") },
+      { cle: "charges", label: "Charges", montant: -somme("charges") },
+      { cle: "credit", label: "Intérêts, assurance et indemnités", montant: -(somme("verse") + somme("assurance") + r.crdFinal + r.ira - r.emprunt) },
+      { cle: "mobilier", label: "Renouvellement du mobilier", montant: -somme("investissement") },
+      { cle: "impots", label: "Impôts annuels", montant: -somme("impot") },
+      { cle: "sortie", label: "Impôt de sortie", montant: -r.impotSortie },
+      { cle: "valeur", label: "Prix de revente net − coût d'achat", montant: r.venteNet - r.cout },
+      { cle: "placement", label: "Gain du placement nanti", montant: deblocage + r.placementSortie - r.nanti }
+    ].filter(x => Math.abs(x.montant) >= 0.5 || ["loyers", "charges", "impots", "valeur"].includes(x.cle));
+    return { postes, total: postes.reduce((s, x) => s + x.montant, 0) };
+  }
+
+  // Résumé d'une simulation complète, pour comparer plusieurs biens entre eux
+  function syntheseBien(p) {
+    const res = comparer(p, { sansComptant: true });
+    const v = verdict(res, p);
+    const m = res.find(r => r.code === v.meilleur);
+    if (!m) return { meilleur: null, verdict: v };
+    return {
+      meilleur: m.code, label: labelDe(m.code), regime: m.regime, verdict: v,
+      tri: m.tri, enrichissement: m.enrichissement, cfMoyApres: m.cfMoyApres, effortMax: m.effortMax,
+      tauxEffort: m.tauxEffort, van: m.van, cout: m.cout, emprunt: m.emprunt, mensualite: m.mensualite
+    };
+  }
+
   // ---------- Contrôle des saisies ----------
 
   function valider(p) {
@@ -741,6 +779,7 @@
   return {
     REGLES, REGIMES, pret, impotRevenu, tmi, impotSocietes, abattementIR, abattementPS, surtaxePV,
     plusValueParticuliers, creerReport, jeanbrun, irr, van, simuler, comparer, tauxEffort, valider,
-    SEUIL_SIGNIFICATIF, VARIABLES, SCENARIOS, verdict, suggestions, sensibilite, seuils, horizons, scenarios
+    SEUIL_SIGNIFICATIF, VARIABLES, SCENARIOS, verdict, suggestions, sensibilite, seuils, horizons, scenarios,
+    decomposition, syntheseBien
   };
 });

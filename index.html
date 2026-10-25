@@ -77,6 +77,42 @@ h3 { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacin
 
 .layout { display: grid; grid-template-columns: minmax(300px, 380px) minmax(0, 1fr); gap: 24px; align-items: start; }
 @media (max-width: 960px) { .layout { grid-template-columns: minmax(0, 1fr); } }
+.colonne-saisie { display: grid; gap: 10px; min-width: 0; }
+@media (min-width: 961px) {
+  .colonne-saisie { position: sticky; top: 16px; max-height: calc(100vh - 32px); overflow-y: auto; padding-right: 4px; }
+}
+.mode { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; padding: 3px; gap: 3px; background: var(--surface); justify-self: start; }
+.mode button { border: 0; background: transparent; padding: 6px 12px; }
+.mode button[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+.mode-petit button { padding: 4px 10px; font-size: 12px; }
+.rapide .inputs .field:not([data-essentiel]), .rapide .inputs details.group:not(.essentiel), .rapide .inputs h3 { display: none; }
+.sims-save { display: flex; gap: 8px; }
+.sims-save input { flex: 1; min-width: 0; font: 13px var(--font-body); color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 7px 9px; }
+.sims-save input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
+.sims { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.sims li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 8px; align-items: center; padding: 8px; border: 1px solid var(--line); border-radius: 6px; }
+.sims .nom { font-weight: 600; overflow-wrap: anywhere; }
+.sims .actions { display: flex; gap: 6px; grid-column: 1 / -1; flex-wrap: wrap; align-items: center; }
+.sims .actions button { padding: 4px 9px; font-size: 12px; }
+.sims .cmp { display: inline-flex; gap: 5px; align-items: center; font-size: 12px; margin-right: auto; }
+.sims .cmp input { accent-color: var(--accent); }
+button.danger { border-color: var(--bad); color: var(--bad); }
+label.bouton { font: 500 13px var(--font-body); border: 1px solid var(--line); background: var(--surface); color: var(--fg); padding: 8px 12px; border-radius: 6px; cursor: pointer; }
+label.bouton:hover { border-color: var(--accent); }
+.vues, .resume-mobile { display: none; }
+@media (max-width: 960px) {
+  body { padding-bottom: calc(80px + env(safe-area-inset-bottom, 0px)); }
+  body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--bg); }
+  .vues { display: flex; gap: 6px; position: sticky; top: env(safe-area-inset-top, 0px); z-index: 6; background: var(--bg); padding-block: 8px; }
+  .vues button { flex: 1; }
+  .vues button[aria-pressed="true"] { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); font-weight: 600; }
+  .layout[data-vue="saisie"] .results, .layout[data-vue="resultats"] .colonne-saisie { display: none; }
+  .resume-mobile { display: flex; position: fixed; left: 0; right: 0; bottom: 0; z-index: 6; justify-content: space-between; align-items: center; gap: 12px; background: var(--surface); border-top: 1px solid var(--line); padding: 10px max(16px, env(safe-area-inset-right, 0px)) calc(10px + env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px)); font-size: 13px; }
+  .resume-mobile.cache { display: none; }
+}
+.cascade .barre-cell { width: 45%; min-width: 160px; }
+.barre .seg.total { background: var(--accent); }
+td .def, th .def { text-decoration: underline dotted; text-underline-offset: 3px; cursor: help; }
 
 /* Hypothèses */
 .inputs { display: grid; gap: 10px; }
@@ -194,29 +230,58 @@ td.sel, tr.sel td { box-shadow: inset 0 0 0 2px var(--accent) !important; }
     </div>
   </header>
 
-  <div class="layout">
+  <nav class="vues" aria-label="Affichage">
+    <button type="button" data-vue="saisie" aria-pressed="true">Hypothèses</button>
+    <button type="button" data-vue="resultats" aria-pressed="false">Résultats</button>
+  </nav>
+
+  <div class="layout" id="layout" data-vue="saisie">
+    <div class="colonne-saisie" id="colonneSaisie">
+    <div class="mode" role="group" aria-label="Niveau de détail des hypothèses">
+      <button type="button" data-mode="rapide" aria-pressed="true">Mode rapide</button>
+      <button type="button" data-mode="expert" aria-pressed="false">Mode expert</button>
+    </div>
+    <p class="hint" id="modeInfo"></p>
+
+    <details class="group sims-group" id="simulations" open>
+      <summary>Mes simulations <span class="hint" id="simCompte"></span></summary>
+      <div class="fields">
+        <div class="sims-save">
+          <input id="simNom" type="text" maxlength="80" placeholder="Nom, par exemple T2 Lyon 3e" aria-label="Nom de la simulation">
+          <button type="button" id="simEnregistrer">Enregistrer</button>
+        </div>
+        <ul class="sims" id="simListe"></ul>
+        <div class="btnrow">
+          <button type="button" id="simExporter">Exporter le fichier</button>
+          <label class="bouton" for="simImporter">Importer un fichier</label>
+          <input type="file" id="simImporter" accept="application/json,.json" hidden>
+        </div>
+        <p class="hint" id="simStatus" role="status"></p>
+      </div>
+    </details>
+
     <form class="inputs" id="form" autocomplete="off">
-      <details class="group" open>
+      <details class="group essentiel" open>
         <summary>Bien et acquisition</summary>
         <div class="fields">
-          <div class="field"><label for="type">Type de bien</label><div class="ctrl"><select id="type"><option value="ancien">Ancien</option><option value="neuf">Neuf (VEFA)</option></select></div></div>
-          <div class="field"><label for="prix">Prix net vendeur</label><div class="ctrl"><input id="prix" type="number" step="1000" value="200000"><span class="u">€</span></div></div>
+          <div class="field" data-essentiel><label for="type">Type de bien</label><div class="ctrl"><select id="type"><option value="ancien">Ancien</option><option value="neuf">Neuf (VEFA)</option></select></div></div>
+          <div class="field" data-essentiel><label for="prix">Prix net vendeur</label><div class="ctrl"><input id="prix" type="number" step="1000" value="200000"><span class="u">€</span></div></div>
           <div class="field"><label for="notairePct">Frais de notaire<small>≈ 7,5 % ancien, 2,5 % neuf</small></label><div class="ctrl"><input id="notairePct" type="number" step="0.1" value="7.5"><span class="u">%</span></div></div>
           <div class="field"><label for="agence">Frais d'agence acquéreur</label><div class="ctrl"><input id="agence" type="number" step="500" value="0"><span class="u">€</span></div></div>
-          <div class="field"><label for="travaux">Travaux initiaux</label><div class="ctrl"><input id="travaux" type="number" step="1000" value="60000"><span class="u">€</span></div></div>
+          <div class="field" data-essentiel><label for="travaux">Travaux initiaux</label><div class="ctrl"><input id="travaux" type="number" step="1000" value="60000"><span class="u">€</span></div></div>
           <div class="field"><label for="etalementTravaux">Déduction des travaux<small>location nue et SCI à l'IR</small></label><div class="ctrl"><select id="etalementTravaux"><option value="1">Sur 1 année</option><option value="2">Sur 2 années civiles</option><option value="3">Sur 3 années civiles</option></select></div></div>
           <div class="field"><label for="mobilier">Mobilier<small>LMNP uniquement</small></label><div class="ctrl"><input id="mobilier" type="number" step="500" value="6000"><span class="u">€</span></div></div>
           <div class="field"><label for="terrainPct">Quote-part terrain<small>non amortissable</small></label><div class="ctrl"><input id="terrainPct" type="number" step="1" value="15"><span class="u">%</span></div></div>
         </div>
       </details>
 
-      <details class="group" open>
+      <details class="group essentiel" open>
         <summary>Financement</summary>
         <div class="fields">
-          <div class="field"><label for="apport">Apport personnel</label><div class="ctrl"><input id="apport" type="number" step="1000" value="30000"><span class="u">€</span></div></div>
+          <div class="field" data-essentiel><label for="apport">Apport personnel</label><div class="ctrl"><input id="apport" type="number" step="1000" value="30000"><span class="u">€</span></div></div>
           <div class="field"><label for="typePret">Type de prêt</label><div class="ctrl"><select id="typePret"><option value="amortissable">Amortissable</option><option value="infine">In fine</option></select></div></div>
-          <div class="field"><label for="taux">Taux nominal</label><div class="ctrl"><input id="taux" type="number" step="0.05" value="3.4"><span class="u">%</span></div></div>
-          <div class="field"><label for="duree">Durée</label><div class="ctrl"><input id="duree" type="number" step="1" value="20"><span class="u">ans</span></div></div>
+          <div class="field" data-essentiel><label for="taux">Taux nominal</label><div class="ctrl"><input id="taux" type="number" step="0.05" value="3.4"><span class="u">%</span></div></div>
+          <div class="field" data-essentiel><label for="duree">Durée</label><div class="ctrl"><input id="duree" type="number" step="1" value="20"><span class="u">ans</span></div></div>
           <div class="field" id="rowDiffere"><label for="differe">Différé<small>mois au début du prêt</small></label><div class="ctrl"><input id="differe" type="number" step="1" min="0" value="0"><span class="u">mois</span></div></div>
           <div class="field" id="rowTypeDiffere"><label for="typeDiffere">Type de différé</label><div class="ctrl"><select id="typeDiffere"><option value="partiel">Partiel : intérêts payés</option><option value="total">Total : intérêts capitalisés</option></select></div></div>
           <div class="field" id="rowNanti"><label for="nanti">Placement nanti<small>épargne en garantie du capital</small></label><div class="ctrl"><input id="nanti" type="number" step="1000" min="0" value="0"><span class="u">€</span></div></div>
@@ -226,16 +291,16 @@ td.sel, tr.sel td { box-shadow: inset 0 0 0 2px var(--accent) !important; }
           <div class="field check"><label for="ira">Indemnités de remboursement anticipé à la revente<small>3 % du capital restant dû, plafonnées à 6 mois d'intérêts</small></label><input id="ira" type="checkbox" checked></div>
           <p class="hint" id="finInfo"></p>
           <h3>Capacité d'emprunt</h3>
-          <div class="field"><label for="revenusMensuels">Revenus nets du foyer<small>avant impôt, hors projet</small></label><div class="ctrl"><input id="revenusMensuels" type="number" step="100" min="0" value="5000"><span class="u">€/mois</span></div></div>
+          <div class="field" data-essentiel><label for="revenusMensuels">Revenus nets du foyer<small>avant impôt, hors projet</small></label><div class="ctrl"><input id="revenusMensuels" type="number" step="100" min="0" value="5000"><span class="u">€/mois</span></div></div>
           <div class="field"><label for="creditsExistants">Crédits en cours</label><div class="ctrl"><input id="creditsExistants" type="number" step="50" min="0" value="0"><span class="u">€/mois</span></div></div>
           <p class="hint" id="hcsfInfo"></p>
         </div>
       </details>
 
-      <details class="group" open>
+      <details class="group essentiel" open>
         <summary>Loyers</summary>
         <div class="fields">
-          <div class="field"><label for="loyerNu">Loyer nu hors charges</label><div class="ctrl"><input id="loyerNu" type="number" step="10" value="1050"><span class="u">€/mois</span></div></div>
+          <div class="field" data-essentiel><label for="loyerNu">Loyer nu hors charges</label><div class="ctrl"><input id="loyerNu" type="number" step="10" value="1050"><span class="u">€/mois</span></div></div>
           <div class="field"><label for="majMeuble">Majoration meublé</label><div class="ctrl"><input id="majMeuble" type="number" step="1" value="12"><span class="u">%</span></div></div>
           <div class="field"><label for="vacance">Vacance locative</label><div class="ctrl"><input id="vacance" type="number" step="0.25" value="0.5"><span class="u">mois/an</span></div></div>
           <div class="field"><label for="irl">Revalorisation annuelle (IRL)</label><div class="ctrl"><input id="irl" type="number" step="0.1" value="1.5"><span class="u">%</span></div></div>
@@ -264,12 +329,12 @@ td.sel, tr.sel td { box-shadow: inset 0 0 0 2px var(--accent) !important; }
         </div>
       </details>
 
-      <details class="group" open>
+      <details class="group essentiel" open>
         <summary>Fiscalité</summary>
         <div class="fields">
-          <div class="field"><label for="situation">Situation du foyer</label><div class="ctrl"><select id="situation"><option value="couple">Couple marié ou pacsé</option><option value="seul">Personne seule</option></select></div></div>
-          <div class="field"><label for="parts">Nombre de parts</label><div class="ctrl"><input id="parts" type="number" step="0.5" min="1" value="2"><span class="u">parts</span></div></div>
-          <div class="field"><label for="revenuImposable">Revenu net imposable du foyer<small>hors projet, après abattement de 10 %</small></label><div class="ctrl"><input id="revenuImposable" type="number" step="1000" min="0" value="60000"><span class="u">€/an</span></div></div>
+          <div class="field" data-essentiel><label for="situation">Situation du foyer</label><div class="ctrl"><select id="situation"><option value="couple">Couple marié ou pacsé</option><option value="seul">Personne seule</option></select></div></div>
+          <div class="field" data-essentiel><label for="parts">Nombre de parts</label><div class="ctrl"><input id="parts" type="number" step="0.5" min="1" value="2"><span class="u">parts</span></div></div>
+          <div class="field" data-essentiel><label for="revenuImposable">Revenu net imposable du foyer<small>hors projet, après abattement de 10 %</small></label><div class="ctrl"><input id="revenuImposable" type="number" step="1000" min="0" value="60000"><span class="u">€/an</span></div></div>
           <p class="hint" id="irInfo"></p>
           <div class="field"><label for="regNu">Régime location nue</label><div class="ctrl"><select id="regNu"><option value="auto">Le plus favorable</option><option value="micro">Micro-foncier</option><option value="reel">Réel</option></select></div></div>
           <div class="field"><label for="regLmnp">Régime LMNP</label><div class="ctrl"><select id="regLmnp"><option value="auto">Le plus favorable</option><option value="micro">Micro-BIC</option><option value="reel">Réel</option></select></div></div>
@@ -289,19 +354,20 @@ td.sel, tr.sel td { box-shadow: inset 0 0 0 2px var(--accent) !important; }
         </div>
       </details>
 
-      <details class="group" open>
+      <details class="group essentiel" open>
         <summary>Détention et revente</summary>
         <div class="fields">
-          <div class="field"><label for="horizon">Durée de détention</label><div class="ctrl"><input id="horizon" type="number" step="1" min="1" max="40" value="15"><span class="u">ans</span></div></div>
-          <div class="field"><label for="valo">Valorisation annuelle du bien</label><div class="ctrl"><input id="valo" type="number" step="0.1" value="1.5"><span class="u">%</span></div></div>
+          <div class="field" data-essentiel><label for="horizon">Durée de détention</label><div class="ctrl"><input id="horizon" type="number" step="1" min="1" max="40" value="15"><span class="u">ans</span></div></div>
+          <div class="field" data-essentiel><label for="valo">Valorisation annuelle du bien</label><div class="ctrl"><input id="valo" type="number" step="0.1" value="1.5"><span class="u">%</span></div></div>
           <div class="field"><label for="fraisRevente">Frais de revente</label><div class="ctrl"><input id="fraisRevente" type="number" step="0.5" value="4"><span class="u">%</span></div></div>
-          <div class="field"><label for="tauxAlternatif">Placement alternatif<small>rendement net de frais et d'impôts, sert de référence</small></label><div class="ctrl"><input id="tauxAlternatif" type="number" step="0.1" value="3"><span class="u">%/an</span></div></div>
+          <div class="field" data-essentiel><label for="tauxAlternatif">Placement alternatif<small>rendement net de frais et d'impôts, sert de référence</small></label><div class="ctrl"><input id="tauxAlternatif" type="number" step="0.1" value="3"><span class="u">%/an</span></div></div>
           <div class="field check"><label for="sciDistrib">SCI IS : distribuer le boni à la sortie<small>flat tax sur les bénéfices accumulés</small></label><input id="sciDistrib" type="checkbox" checked></div>
         </div>
       </details>
 
       <div class="btnrow"><button type="button" id="reset">Revenir à l'exemple</button></div>
     </form>
+    </div>
 
     <div class="results" id="resultats">
       <section class="panel" aria-labelledby="t-verdict">
@@ -311,12 +377,25 @@ td.sel, tr.sel td { box-shadow: inset 0 0 0 2px var(--accent) !important; }
         <ul class="alerts suggestions" id="suggestions"></ul>
       </section>
 
+      <section class="panel" id="panelBiens" aria-labelledby="t-biens" hidden>
+        <div class="panel-head"><h2 id="t-biens">Comparaison de biens</h2><span class="hint">Simulation en cours et simulations cochées, chacune dans son régime le plus rentable</span></div>
+        <div class="scroll"><table id="biens"></table></div>
+      </section>
+
       <section class="panel" aria-labelledby="t-synth">
         <div class="panel-head"><h2 id="t-synth">Synthèse sur la durée de détention</h2><span class="hint" id="synthHint"></span></div>
         <div class="kpis" id="kpis"></div>
         <ul class="alerts" id="alerts"></ul>
         <div class="scroll"><table id="synth"></table></div>
         <div class="explication" id="explication" hidden></div>
+      </section>
+
+      <section class="panel" aria-labelledby="t-argent">
+        <div class="panel-head"><h2 id="t-argent">Où va l'argent</h2><div class="ctrl ctrl-inline"><select id="cascadeRegime" aria-label="Régime détaillé"><option value="auto">Régime le plus rentable</option><option value="nu">Location nue</option><option value="lmnp">LMNP</option><option value="sciir">SCI à l'IR</option><option value="sciis">SCI à l'IS</option><option value="jeanbrun">Jeanbrun</option></select></div></div>
+        <p class="hint">Sur toute la durée de détention, de la somme des loyers à l'enrichissement net.</p>
+        <div class="scroll"><table id="cascade" class="cascade"></table></div>
+        <h3>Tous les régimes</h3>
+        <div class="scroll"><table id="argent"></table></div>
       </section>
 
       <section class="panel" aria-labelledby="t-robu">
@@ -344,7 +423,9 @@ td.sel, tr.sel td { box-shadow: inset 0 0 0 2px var(--accent) !important; }
       </section>
 
       <section class="panel chart" aria-labelledby="t-chart">
-        <div class="panel-head"><h2 id="t-chart">Trésorerie cumulée après impôt</h2><span class="hint">Effort d'épargne si négatif, hors revente</span></div>
+        <div class="panel-head"><h2 id="t-chart">Trésorerie cumulée après impôt</h2>
+          <div class="mode mode-petit" role="group" aria-label="Courbe affichée"><button type="button" data-courbe="tresorerie" aria-pressed="true">Trésorerie</button><button type="button" data-courbe="patrimoine" aria-pressed="false">Patrimoine net</button></div></div>
+        <p class="hint" id="chartHint">Effort d'épargne si négatif, hors revente.</p>
         <div id="chart"></div>
         <div class="legend" id="legend"></div>
       </section>
@@ -376,6 +457,11 @@ td.sel, tr.sel td { box-shadow: inset 0 0 0 2px var(--accent) !important; }
   </div>
 </div>
 
+<div class="resume-mobile" id="resumeMobile">
+  <span id="resumeTexte"></span>
+  <button type="button" class="primary" data-vue="resultats">Voir les résultats</button>
+</div>
+
 <script src="regles.js"></script>
 <script src="moteur.js"></script>
 <script>
@@ -393,18 +479,27 @@ td.sel, tr.sel td { box-shadow: inset 0 0 0 2px var(--accent) !important; }
   ids.forEach(id => { const el = document.getElementById(id); defaults[id] = el.type === "checkbox" ? el.checked : el.value; });
   const STORE_KEY = "comparateur-fiscal-locatif-v1";
 
-  function readParams() {
+  // Valeurs brutes du formulaire, telles qu'enregistrées
+  function lireValeurs() {
+    const v = {};
+    ids.forEach(id => { const el = document.getElementById(id); v[id] = el.type === "checkbox" ? el.checked : el.value; });
+    return v;
+  }
+  // Conversion en paramètres du moteur ; un champ absent prend la valeur de l'exemple
+  function versParams(valeurs) {
     const p = {};
     ids.forEach(id => {
       const el = document.getElementById(id);
-      if (el.type === "checkbox") p[id] = el.checked;
-      else if (el.tagName === "SELECT" && isNaN(parseFloat(el.value))) p[id] = el.value;
-      else p[id] = parseFloat(el.value) || 0;
+      const v = id in valeurs ? valeurs[id] : defaults[id];
+      if (el.type === "checkbox") p[id] = v === true || v === "true";
+      else if (el.tagName === "SELECT" && isNaN(parseFloat(v))) p[id] = v;
+      else p[id] = parseFloat(v) || 0;
     });
     p.horizon = Math.round(p.horizon);
     p.duree = Math.round(p.duree);
     return p;
   }
+  const readParams = () => versParams(lireValeurs());
 
   // ---------- Affichage ----------
 
@@ -547,6 +642,21 @@ td.sel, tr.sel td { box-shadow: inset 0 0 0 2px var(--accent) !important; }
     ["Effet de levier du crédit", r => r.tri != null && r.triComptant != null ? r.tri - r.triComptant : null, "pts", "max", "levier"]
   ];
 
+  const GLOSSAIRE = {
+    "TRI des fonds propres": "Taux de rendement interne : le taux annuel qui rend nulle la valeur actuelle de tous vos flux (apport, efforts d'épargne, excédents, produit de revente). Comparable au rendement d'un placement.",
+    "TRI en achat comptant": "Le même calcul si le bien était payé sans crédit.",
+    "Effet de levier du crédit": "Écart entre le TRI avec crédit et le TRI comptant. Positif quand le crédit coûte moins que ce que rapporte le bien.",
+    "Rendement brut": "Loyers annuels divisés par le prix de revient (prix, frais d'acquisition et travaux).",
+    "Rendement net de charges": "Loyers moins charges, divisés par le coût total de l'opération.",
+    "Rendement net-net moyen": "Loyers moins charges et impôts, en moyenne sur la détention, divisés par le coût total.",
+    "Taux d'endettement (HCSF)": "Mensualités de crédit divisées par les revenus, 70 % des loyers compris. Plafond de 35 % fixé par le Haut Conseil de stabilité financière.",
+    "Enrichissement net": "Ce que l'opération vous laisse en euros à la revente, après remboursement du crédit, impôts et récupération de vos mises de fonds.",
+    "Multiple des fonds investis": "Sommes récupérées divisées par les sommes investies. 1,5 x : chaque euro investi en rapporte 1,5.",
+    "Effort d'épargne cumulé maximal": "Le montant le plus élevé que vous aurez dû ajouter de votre poche, cumulé, au pire moment.",
+    "Impôt de sortie": "Impôt sur la plus-value à la revente, reprises fiscales et, en SCI à l'IS, flat tax sur les bénéfices distribués.",
+    "Coût du crédit sur la détention": "Intérêts, assurance, frais de dossier et indemnités de remboursement anticipé payés pendant la détention."
+  };
+
   function renderSynth(res, erreurs) {
     let h = "<thead><tr><th></th>" + res.map((r, i) => {
       const R = REGIMES[i];
@@ -560,7 +670,7 @@ td.sel, tr.sel td { box-shadow: inset 0 0 0 2px var(--accent) !important; }
       if (vals.every(v => v == null)) return;
       const valid = vals.filter(v => v != null && isFinite(v));
       const target = dir === "max" ? Math.max(...valid) : dir === "min" ? Math.min(...valid) : null;
-      h += `<tr><td>${label}</td>` + vals.map((v, i) => {
+      h += `<tr><td>${GLOSSAIRE[label] ? `<span class="def" title="${esc(GLOSSAIRE[label])}">${label}</span>` : label}</td>` + vals.map((v, i) => {
         if (v == null || !isFinite(v)) return `<td class="na">—</td>`;
         let c = "";
         if (kind === "effort") c = res[i].tauxEffort.conforme ? "best" : "neg";
@@ -599,7 +709,10 @@ td.sel, tr.sel td { box-shadow: inset 0 0 0 2px var(--accent) !important; }
   }
 
   function renderChart(res) {
-    const series = res.map((r, i) => ({ R: REGIMES[i], r, pts: [0].concat(r.years.reduce((acc, o) => { acc.push((acc.length ? acc[acc.length - 1] : 0) + o.cfApres); return acc; }, [])) }))
+    const depart = r => (lastP.prix + lastP.travaux) * (1 - lastP.fraisRevente / 100) - r.cout - r.nanti;
+    const series = res.map((r, i) => ({ R: REGIMES[i], r, pts: courbe === "patrimoine"
+      ? [depart(r)].concat(r.years.map(o => o.patrimoineNet))
+      : [0].concat(r.years.reduce((acc, o) => { acc.push((acc.length ? acc[acc.length - 1] : 0) + o.cfApres); return acc; }, [])) }))
       .filter(s => s.r.eligible);
     const H = res[0].years.length;
     const all = series.flatMap(s => s.pts);
@@ -817,6 +930,269 @@ td.sel, tr.sel td { box-shadow: inset 0 0 0 2px var(--accent) !important; }
     else { document.getElementById("tornado").innerHTML = `<tbody><tr><td class="na">Régime non éligible avec ces hypothèses.</td></tr></tbody>`; document.getElementById("seuils").innerHTML = ""; }
   });
 
+  // ---------- Mode rapide ou expert ----------
+
+  const colonne = document.getElementById("colonneSaisie");
+  function appliquerMode(mode) {
+    colonne.classList.toggle("rapide", mode === "rapide");
+    document.querySelectorAll("[data-mode]").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.mode === mode)));
+    try { localStorage.setItem(STORE_KEY + "-mode", mode); } catch (e) {}
+    renderModeInfo();
+  }
+  function renderModeInfo() {
+    const el = document.getElementById("modeInfo");
+    if (!colonne.classList.contains("rapide")) { el.textContent = "Toutes les hypothèses sont modifiables."; return; }
+    const p = readParams();
+    const fixes = p.copro + p.tf + p.pno + p.entretien;
+    el.textContent = `Mode rapide : seules les hypothèses essentielles sont affichées. Les autres gardent leurs valeurs, notamment ${fmt(fixes)} de charges par an et ${(p.gestionPct + p.gliPct).toLocaleString("fr-FR")} % des loyers pour la gestion et la garantie` + (p.typePret === "infine" ? ", et un prêt in fine" : "") + ". Passez en mode expert pour les ajuster.";
+  }
+  document.querySelectorAll("[data-mode]").forEach(b => b.addEventListener("click", () => appliquerMode(b.dataset.mode)));
+
+  // ---------- Vues mobiles ----------
+
+  const layout = document.getElementById("layout");
+  function changerVue(vue) {
+    layout.dataset.vue = vue;
+    document.querySelectorAll(".vues [data-vue]").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.vue === vue)));
+    document.getElementById("resumeMobile").classList.toggle("cache", vue === "resultats");
+    window.scrollTo(0, 0);
+  }
+  document.querySelectorAll("[data-vue]").forEach(b => { if (b.tagName === "BUTTON") b.addEventListener("click", () => changerVue(b.dataset.vue)); });
+
+  function renderResume(res) {
+    const v = Moteur.verdict(res, lastP);
+    const m = res.find(r => r.code === v.meilleur);
+    document.getElementById("resumeTexte").textContent = m ? `${REGIMES.find(R => R.code === m.code).label} : TRI ${pct(m.tri)}, ${fmt(m.cfMoyApres)}/mois` : "Pas de résultat";
+  }
+
+  // ---------- Simulations enregistrées ----------
+
+  const SIMS_KEY = "comparateur-fiscal-locatif-simulations";
+  let simulations = [];
+  let stockageOk = true;
+  try { simulations = JSON.parse(localStorage.getItem(SIMS_KEY) || "[]"); if (!Array.isArray(simulations)) simulations = []; } catch (e) { stockageOk = false; }
+  const aComparer = new Set();
+  const simStatus = document.getElementById("simStatus");
+
+  function sauverSims() {
+    try { localStorage.setItem(SIMS_KEY, JSON.stringify(simulations)); stockageOk = true; }
+    catch (e) { stockageOk = false; }
+    if (!stockageOk) simStatus.textContent = "Le navigateur ne conserve pas les données ici : exportez vos simulations pour les garder.";
+  }
+
+  function renderSims() {
+    document.getElementById("simCompte").textContent = simulations.length ? `(${simulations.length})` : "";
+    const liste = document.getElementById("simListe");
+    if (!simulations.length) { liste.innerHTML = `<li class="hint">Aucune simulation enregistrée. Donnez un nom à la saisie en cours puis enregistrez-la pour la retrouver ou la comparer.</li>`; return; }
+    liste.innerHTML = simulations.map(s => {
+      let resume = "";
+      try { const b = Moteur.syntheseBien(versParams(s.valeurs)); resume = b.meilleur ? `${b.label} · TRI ${pct(b.tri)}` : ""; } catch (e) {}
+      const date = new Date(s.date).toLocaleDateString("fr-FR");
+      return `<li data-id="${esc(s.id)}"><span class="nom">${esc(s.nom)}</span><span class="hint">${date}</span>` +
+        `<span class="hint" style="grid-column:1/-1">${fmt(parseFloat(s.valeurs.prix) || 0)} · ${esc(resume)}</span>` +
+        `<span class="actions"><label class="cmp"><input type="checkbox" data-act="comparer"${aComparer.has(s.id) ? " checked" : ""}> Comparer</label>` +
+        `<button type="button" data-act="ouvrir">Ouvrir</button><button type="button" data-act="supprimer">Supprimer</button></span></li>`;
+    }).join("");
+  }
+
+  function enregistrerSim() {
+    const nom = document.getElementById("simNom").value.trim();
+    if (!nom) { simStatus.textContent = "Donnez un nom à la simulation avant de l'enregistrer."; document.getElementById("simNom").focus(); return; }
+    const existante = simulations.find(s => s.nom.toLowerCase() === nom.toLowerCase());
+    const valeurs = lireValeurs();
+    if (existante) { existante.valeurs = valeurs; existante.date = new Date().toISOString(); simStatus.textContent = `« ${nom} » mise à jour.`; }
+    else { simulations.unshift({ id: "s" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), nom, date: new Date().toISOString(), valeurs }); simStatus.textContent = `« ${nom} » enregistrée.`; }
+    sauverSims(); renderSims();
+  }
+
+  function appliquerValeurs(valeurs) {
+    ids.forEach(id => {
+      const el = document.getElementById(id);
+      const v = id in valeurs ? valeurs[id] : defaults[id];
+      if (el.type === "checkbox") el.checked = v === true || v === "true"; else el.value = v;
+    });
+    syncPret();
+  }
+
+  let suppressionEnAttente = null;
+  document.getElementById("simListe").addEventListener("click", e => {
+    const li = e.target.closest("li[data-id]");
+    const act = e.target.dataset && e.target.dataset.act;
+    if (!li || !act) return;
+    const sim = simulations.find(s => s.id === li.dataset.id);
+    if (!sim) return;
+    if (act === "ouvrir") {
+      appliquerValeurs(sim.valeurs);
+      document.getElementById("simNom").value = sim.nom;
+      simStatus.textContent = `« ${sim.nom} » ouverte.`;
+      update();
+    } else if (act === "supprimer") {
+      if (suppressionEnAttente !== sim.id) {
+        suppressionEnAttente = sim.id;
+        e.target.textContent = "Confirmer la suppression";
+        e.target.classList.add("danger");
+        setTimeout(() => { if (suppressionEnAttente === sim.id) { suppressionEnAttente = null; renderSims(); } }, 4000);
+        return;
+      }
+      suppressionEnAttente = null;
+      simulations = simulations.filter(s => s.id !== sim.id);
+      aComparer.delete(sim.id);
+      sauverSims(); renderSims(); renderBiens();
+      simStatus.textContent = `« ${sim.nom} » supprimée.`;
+    }
+  });
+  document.getElementById("simListe").addEventListener("change", e => {
+    if (e.target.dataset.act !== "comparer") return;
+    const id = e.target.closest("li[data-id]").dataset.id;
+    if (e.target.checked) aComparer.add(id); else aComparer.delete(id);
+    renderBiens();
+  });
+  document.getElementById("simEnregistrer").addEventListener("click", enregistrerSim);
+  document.getElementById("simNom").addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); enregistrerSim(); } });
+
+  // Enregistre un fichier : capacité de téléchargement dans le lecteur Claude, téléchargement direct ailleurs
+  async function enregistrerFichier(filename, blob) {
+    const inViewer = !!(window.claude && typeof window.claude.use === "function");
+    const downloads = inViewer ? await window.claude.use("downloads") : null;
+    if (downloads) { await downloads.save({ filename, data: blob }); return "enregistré"; }
+    if (inViewer) return "indisponible";
+    const url = URL.createObjectURL(blob);
+    const a = Object.assign(document.createElement("a"), { href: url, download: filename });
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    return "téléchargé";
+  }
+  function messageErreurFichier(e) {
+    if (e && e.code === "declined") return "Enregistrement annulé.";
+    if (e && e.code === "rate_limited") return "Une demande d'enregistrement est déjà ouverte.";
+    return "L'enregistrement a échoué : " + ((e && (e.message || e.code)) || "erreur inconnue") + ".";
+  }
+
+  document.getElementById("simExporter").addEventListener("click", async () => {
+    if (!simulations.length) { simStatus.textContent = "Aucune simulation à exporter."; return; }
+    const contenu = JSON.stringify({ format: "comparateur-fiscal-locatif", version: 1, exporteLe: new Date().toISOString(), simulations }, null, 2);
+    try {
+      const r = await enregistrerFichier(`simulations-locatives-${new Date().toISOString().slice(0, 10)}.json`, new Blob([contenu], { type: "application/json" }));
+      simStatus.textContent = r === "indisponible" ? "L'enregistrement de fichiers n'est pas disponible dans cette vue." : `${simulations.length} simulation(s) exportée(s).`;
+    } catch (e) { simStatus.textContent = messageErreurFichier(e); }
+  });
+
+  document.getElementById("simImporter").addEventListener("change", e => {
+    const fichier = e.target.files && e.target.files[0];
+    e.target.value = "";
+    if (!fichier) return;
+    const lecteur = new FileReader();
+    lecteur.onload = () => {
+      try {
+        const data = JSON.parse(lecteur.result);
+        if (!data || data.format !== "comparateur-fiscal-locatif" || !Array.isArray(data.simulations)) throw new Error("format");
+        let ajout = 0, maj = 0;
+        data.simulations.forEach(s => {
+          if (!s || typeof s.nom !== "string" || !s.valeurs || typeof s.valeurs !== "object") return;
+          const valeurs = {};
+          ids.forEach(id => { if (id in s.valeurs) valeurs[id] = String(s.valeurs[id]); });
+          const ex = simulations.find(o => o.id === s.id || o.nom.toLowerCase() === s.nom.toLowerCase());
+          if (ex) { ex.valeurs = valeurs; ex.date = s.date || ex.date; maj++; }
+          else { simulations.push({ id: String(s.id || "s" + Date.now().toString(36) + ajout), nom: s.nom.slice(0, 80), date: s.date || new Date().toISOString(), valeurs }); ajout++; }
+        });
+        sauverSims(); renderSims();
+        simStatus.textContent = `Import terminé : ${ajout} ajoutée(s), ${maj} mise(s) à jour.`;
+      } catch (err) {
+        simStatus.textContent = "Ce fichier n'est pas un export du comparateur. Choisissez un fichier .json créé avec « Exporter le fichier ».";
+      }
+    };
+    lecteur.onerror = () => { simStatus.textContent = "Le fichier n'a pas pu être lu."; };
+    lecteur.readAsText(fichier);
+  });
+
+  // ---------- Comparaison de biens ----------
+
+  function renderBiens() {
+    const panel = document.getElementById("panelBiens");
+    const choisies = simulations.filter(s => aComparer.has(s.id));
+    panel.hidden = !choisies.length || !lastP;
+    if (panel.hidden) return;
+    const colonnes = [{ nom: "Saisie en cours", p: lastP }].concat(choisies.map(s => ({ nom: s.nom, p: versParams(s.valeurs) })));
+    colonnes.forEach(c => { c.b = Moteur.syntheseBien(c.p); });
+    const lignes = [
+      ["sep", "Hypothèses"],
+      ["Prix", c => c.p.prix, "eur"],
+      ["Travaux", c => c.p.travaux, "eur"],
+      ["Loyer nu", c => c.p.loyerNu, "eur"],
+      ["Apport", c => c.p.apport, "eur"],
+      ["Durée de détention", c => c.p.horizon, "ans"],
+      ["sep", "Résultat dans le régime le plus rentable"],
+      ["Régime", c => c.b.meilleur ? `${c.b.label} (${c.b.regime})` + (c.b.verdict.significatif === false ? " · à égalité" : "") : "—", "txt"],
+      ["TRI des fonds propres", c => c.b.tri, "pct", "max"],
+      ["Enrichissement net", c => c.b.enrichissement, "eur", "max"],
+      ["Trésorerie moyenne après impôt", c => c.b.cfMoyApres, "eur", "max"],
+      ["Effort d'épargne cumulé maximal", c => c.b.effortMax, "eur", "min"],
+      ["Taux d'endettement (HCSF)", c => c.b.tauxEffort ? c.b.tauxEffort.taux : null, "pct", "min"],
+      ["VAN au taux du placement alternatif", c => c.b.van, "eur", "max"]
+    ];
+    let h = "<thead><tr><th></th>" + colonnes.map(c => `<th>${esc(c.nom)}</th>`).join("") + "</tr></thead><tbody>";
+    lignes.forEach(l => {
+      if (l[0] === "sep") { h += `<tr class="sep"><td colspan="${colonnes.length + 1}">${l[1]}</td></tr>`; return; }
+      const [label, get, kind, dir] = l;
+      const vals = colonnes.map(get);
+      const num = vals.filter(v => typeof v === "number" && isFinite(v));
+      const cible = dir === "max" ? Math.max(...num) : dir === "min" ? Math.min(...num) : null;
+      h += `<tr><td>${label}</td>` + vals.map(v => {
+        if (v == null || (typeof v === "number" && !isFinite(v))) return `<td class="na">—</td>`;
+        if (kind === "txt") return `<td>${esc(v)}</td>`;
+        const ecartes = Math.max(...num) - Math.min(...num) >= (kind === "eur" ? 0.5 : 1e-9);
+        const best = cible != null && num.length > 1 && ecartes && Math.abs(v - cible) < (kind === "eur" ? 0.5 : 1e-9);
+        const txtV = kind === "ans" ? `${v} ans` : kind === "pct" ? pct(v) : fmt(v);
+        return `<td${best ? ' class="best"' : (kind === "eur" && v < -0.5) || (kind === "pct" && v < 0) ? ' class="neg"' : ""}>${txtV}</td>`;
+      }).join("") + "</tr>";
+    });
+    document.getElementById("biens").innerHTML = h + "</tbody>";
+  }
+
+  // ---------- Où va l'argent ----------
+
+  function renderArgent(res) {
+    const choix = document.getElementById("cascadeRegime").value;
+    const ok = res.filter(r => r.eligible);
+    const r = choix === "auto" ? ok.reduce((a, b) => (b.tri ?? -1) > (a.tri ?? -1) ? b : a, ok[0]) : res.find(o => o.code === choix);
+    if (!r || !r.eligible) {
+      document.getElementById("cascade").innerHTML = `<tbody><tr><td class="na">Régime non éligible avec ces hypothèses.</td></tr></tbody>`;
+    } else {
+      const d = Moteur.decomposition(r);
+      let cumul = 0;
+      const etapes = d.postes.map(x => { const debut = cumul; cumul += x.montant; return { x, debut, fin: cumul }; });
+      const bornes = [0, d.total].concat(...etapes.map(e => [e.debut, e.fin]));
+      const min = Math.min(...bornes), max = Math.max(...bornes);
+      const pos = v => ((v - min) / ((max - min) || 1) * 100).toFixed(2) + "%";
+      const barre = (a, b, cls) => `<span class="barre"><span class="seg ${cls}" style="left:${pos(Math.min(a, b))};width:calc(${pos(Math.max(a, b))} - ${pos(Math.min(a, b))})"></span><span class="base" style="left:${pos(0)}"></span></span>`;
+      let h = `<thead><tr><th>${REGIMES.find(R => R.code === r.code).label} (${r.regime})</th><th>Montant</th><th class="barre-cell"></th></tr></thead><tbody>`;
+      etapes.forEach(e => { h += `<tr><td>${e.x.label}</td><td${cls(e.x.montant)}>${fmt(e.x.montant)}</td><td class="barre-cell">${barre(e.debut, e.fin, e.x.montant >= 0 ? "plus" : "moins")}</td></tr>`; });
+      h += `<tr><td><strong>Enrichissement net</strong></td><td${cls(d.total)}><strong>${fmt(d.total)}</strong></td><td class="barre-cell">${barre(0, d.total, "total")}</td></tr>`;
+      document.getElementById("cascade").innerHTML = h + "</tbody>";
+    }
+    const decs = ok.map(o => ({ r: o, d: Moteur.decomposition(o) }));
+    const postes = [];
+    decs.forEach(x => x.d.postes.forEach(pp => { if (!postes.find(q => q.cle === pp.cle)) postes.push({ cle: pp.cle, label: pp.label }); }));
+    let t = "<thead><tr><th></th>" + decs.map(x => { const R = REGIMES.find(o => o.code === x.r.code); return `<th><span class="reg"><span class="dot" style="background:${R.color}"></span>${R.label}</span></th>`; }).join("") + "</tr></thead><tbody>";
+    postes.forEach(pp => {
+      t += `<tr><td>${pp.label}</td>` + decs.map(x => { const v = (x.d.postes.find(q => q.cle === pp.cle) || { montant: 0 }).montant; return `<td${cls(v)}>${fmt(v)}</td>`; }).join("") + "</tr>";
+    });
+    t += `<tr><td><strong>Enrichissement net</strong></td>` + decs.map(x => `<td${cls(x.d.total)}><strong>${fmt(x.d.total)}</strong></td>`).join("") + "</tr>";
+    document.getElementById("argent").innerHTML = t + "</tbody>";
+  }
+  document.getElementById("cascadeRegime").addEventListener("change", () => { if (last) renderArgent(last); });
+
+  // ---------- Courbe : trésorerie ou patrimoine ----------
+
+  let courbe = "tresorerie";
+  document.querySelectorAll("[data-courbe]").forEach(b => b.addEventListener("click", () => {
+    courbe = b.dataset.courbe;
+    document.querySelectorAll("[data-courbe]").forEach(x => x.setAttribute("aria-pressed", String(x === b)));
+    document.getElementById("t-chart").textContent = courbe === "tresorerie" ? "Trésorerie cumulée après impôt" : "Patrimoine net";
+    document.getElementById("chartHint").textContent = courbe === "tresorerie" ? "Effort d'épargne si négatif, hors revente." : "Valeur du bien nette de frais de revente − capital restant dû + trésorerie cumulée − fonds de départ, avant impôt de sortie.";
+    if (last) renderChart(last);
+  }));
+
   let last = null, lastP = null;
   function update() {
     const p = readParams();
@@ -838,8 +1214,12 @@ td.sel, tr.sel td { box-shadow: inset 0 0 0 2px var(--accent) !important; }
     renderSynth(res, erreurs);
     renderAnalyses(p, res);
     renderChart(res);
+    renderArgent(res);
+    renderBiens();
+    renderResume(res);
+    renderModeInfo();
     renderDetail(res);
-    try { const s = {}; ids.forEach(id => { const el = document.getElementById(id); s[id] = el.type === "checkbox" ? el.checked : el.value; }); localStorage.setItem(STORE_KEY, JSON.stringify(s)); } catch (e) {}
+    try { localStorage.setItem(STORE_KEY, JSON.stringify(lireValeurs())); } catch (e) {}
   }
 
   function syncPret() {
@@ -1076,6 +1456,17 @@ td.sel, tr.sel td { box-shadow: inset 0 0 0 2px var(--accent) !important; }
       doc.text(lines, M, y);
     }
 
+    // Où va l'argent et comparaison de biens
+    doc.addPage();
+    y = sectionTitle(doc, "Où va l'argent : de la somme des loyers à l'enrichissement net", 18);
+    const ar = tableFromDom(document.getElementById("argent"));
+    y = pdfTable(doc, ar.head, ar.body, y, { columnStyles: { 0: { halign: "left", cellWidth: 70 } } });
+    if (!document.getElementById("panelBiens").hidden) {
+      y = sectionTitle(doc, "Comparaison de biens", y + 10);
+      const bi = tableFromDom(document.getElementById("biens"));
+      y = pdfTable(doc, bi.head, bi.body, y, { columnStyles: { 0: { halign: "left", cellWidth: 70 } } });
+    }
+
     // Robustesse et durée de détention
     doc.addPage();
     y = sectionTitle(doc, "Robustesse : trois scénarios (TRI et enrichissement net)", 18);
@@ -1183,17 +1574,8 @@ td.sel, tr.sel td { box-shadow: inset 0 0 0 2px var(--accent) !important; }
       terminerAnalyses();
       const doc = buildPdf(jsPDF, lastP, last);
       const filename = `simulation-locative-${new Date().toISOString().slice(0, 10)}.pdf`;
-      const inViewer = !!(window.claude && typeof window.claude.use === "function");
-      const downloads = inViewer ? await window.claude.use("downloads") : null;
-      if (downloads) {
-        await downloads.save({ filename, data: doc.output("blob") });
-        pdfStatus.textContent = "PDF enregistré.";
-      } else if (inViewer) {
-        pdfStatus.textContent = "L'enregistrement de fichiers n'est pas disponible dans cette vue.";
-      } else {
-        doc.save(filename);
-        pdfStatus.textContent = "PDF téléchargé.";
-      }
+      const r = await enregistrerFichier(filename, doc.output("blob"));
+      pdfStatus.textContent = r === "indisponible" ? "L'enregistrement de fichiers n'est pas disponible dans cette vue." : r === "enregistré" ? "PDF enregistré." : "PDF téléchargé.";
     } catch (e) {
       if (e && e.code === "declined") pdfStatus.textContent = "Export annulé.";
       else if (e && e.code === "rate_limited") pdfStatus.textContent = "Une demande d'enregistrement est déjà ouverte.";
@@ -1204,10 +1586,14 @@ td.sel, tr.sel td { box-shadow: inset 0 0 0 2px var(--accent) !important; }
     }
   });
 
-  window.__simulateur = { readParams, Moteur };
+  window.__simulateur = { readParams, versParams, Moteur };
+  let modeInitial = "rapide";
+  try { modeInitial = localStorage.getItem(STORE_KEY + "-mode") || "rapide"; } catch (e) {}
   syncPret();
   renderRegles();
   update();
+  appliquerMode(modeInitial);
+  renderSims();
 })();
 </script>
 </body>
