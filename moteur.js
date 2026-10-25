@@ -789,6 +789,46 @@
     return est;
   }
 
+  // Valeur d'un quantile dans un histogramme à classes logarithmiques, avec interpolation dans la classe
+  function quantileHistogramme(h, bornes, q) {
+    const n = h.reduce((s, c) => s + c, 0);
+    if (!n) return null;
+    const cible = q * n;
+    const bord = b => bornes.min * Math.pow(bornes.max / bornes.min, b / bornes.n);
+    let cumul = 0;
+    for (let b = 0; b < h.length; b++) {
+      if (cumul + h[b] >= cible && h[b] > 0) {
+        const frac = (cible - cumul) / h[b];
+        return bord(b) * Math.pow(bord(b + 1) / bord(b), frac);
+      }
+      cumul += h[b];
+    }
+    return bord(h.length);
+  }
+
+  // Prix du quartier : carrés de la grille autour du point, élargis si les ventes sont trop rares
+  function estimationQuartier(q, lat, lon, typeLogement) {
+    if (!q || !q.carres || !isFinite(lat) || !isFinite(lon)) return null;
+    const t = typeLogement === "maison" ? "m" : "a";
+    const i0 = Math.floor(lat / q.grille.lat), j0 = Math.floor(lon / q.grille.lon);
+    const metres = q.grille.lat * 111000;
+    for (const r of [1, 2, 3]) {
+      const h = new Array(q.bornes.n).fill(0);
+      let n = 0;
+      for (let i = i0 - r; i <= i0 + r; i++) for (let j = j0 - r; j <= j0 + r; j++) {
+        const c = q.carres[`${i}:${j}`];
+        if (c && c[t]) c[t].forEach(([b, k]) => { h[b] += k; n += k; });
+      }
+      if (n >= REGLES.marche.ventesMinimumQuartier) {
+        return {
+          med: Math.round(quantileHistogramme(h, q.bornes, 0.5)), q1: Math.round(quantileHistogramme(h, q.bornes, 0.25)), q3: Math.round(quantileHistogramme(h, q.bornes, 0.75)),
+          n, periode: q.periode, rayon: Math.round((r + 0.5) * metres / 50) * 50, niveau: "quartier"
+        };
+      }
+    }
+    return null;
+  }
+
   // Écarts entre la saisie et le marché local
   function alertesMarche(p, est) {
     const out = [];
@@ -796,12 +836,13 @@
     const s = est.surface;
     if (est.prix && s > 0) {
       const m2 = p.prix / s;
-      const lieu = est.prix.niveau === "departement" ? "du département" : "de la commune";
+      const lieu = est.prix.niveau === "departement" ? "du département" : est.prix.niveau === "quartier" ? `du quartier, dans un rayon d'environ ${est.prix.rayon} m` : "de la commune";
+      const lieuEvolution = est.prix.niveau === "quartier" ? "dans la commune" : lieu.replace(/^du /, "dans le ").replace(/^de la /, "dans la ");
       if (!est.prix.fiable) out.push({ niveau: "info", message: `Seulement ${est.prix.n} ventes comparables : la référence de prix est peu fiable.` });
       else if (m2 > est.prix.q3) out.push({ niveau: "alerte", message: `Prix de ${e(m2)}/m² : au-dessus des trois quarts des ventes ${lieu} (médiane ${e(est.prix.med)}/m², 75 % des ventes sous ${e(est.prix.q3)}/m²).` });
       else if (m2 < est.prix.q1) out.push({ niveau: "info", message: `Prix de ${e(m2)}/m² : sous le premier quart des ventes ${lieu} (médiane ${e(est.prix.med)}/m²). Vérifiez l'état du bien et les travaux à prévoir.` });
       if (est.prix.evolution != null && p.valo / 100 > est.prix.evolution + REGLES.marche.ecartValorisationAlerte) {
-        out.push({ niveau: "alerte", message: `Valorisation saisie de ${nf2.format(p.valo)} % par an, contre ${nf2.format(est.prix.evolution * 100)} % par an observés ${lieu} sur ${est.prix.anneesEvolution}.` });
+        out.push({ niveau: "alerte", message: `Valorisation saisie de ${nf2.format(p.valo)} % par an, contre ${nf2.format(est.prix.evolution * 100)} % par an observés ${lieuEvolution} sur ${est.prix.anneesEvolution}.` });
       }
     }
     if (est.loyer && s > 0) {
@@ -854,6 +895,7 @@
     REGLES, REGIMES, pret, impotRevenu, tmi, impotSocietes, abattementIR, abattementPS, surtaxePV,
     plusValueParticuliers, creerReport, jeanbrun, irr, van, simuler, comparer, tauxEffort, valider,
     SEUIL_SIGNIFICATIF, VARIABLES, SCENARIOS, verdict, suggestions, sensibilite, seuils, horizons, scenarios,
-    decomposition, syntheseBien, fraisNotaire, defautsSurface, estimationMarche, alertesMarche
+    decomposition, syntheseBien, fraisNotaire, defautsSurface, estimationMarche, alertesMarche,
+    quantileHistogramme, estimationQuartier
   };
 });

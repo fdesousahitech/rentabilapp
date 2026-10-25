@@ -404,3 +404,40 @@ test("alertes de marché : prix, loyer et valorisation", () => {
   const peu = M.estimationMarche({ prix: { appartement: { med: 4000, q1: 3000, q3: 5000, n: 4 } } }, "appartement", 50);
   assert.deepEqual(M.alertesMarche(EXEMPLE, peu).map(a => a.niveau), ["info"]);
 });
+
+// ---------- Prix du quartier ----------
+
+// Histogrammes fictifs construits pour le test (pas des données réelles)
+const BORNES_TEST = { min: 300, max: 30000, n: 64 };
+const classeDe = m2 => Math.floor(Math.log(m2 / 300) / Math.log(100) * 64);
+
+test("quantile d'histogramme : reste dans la classe attendue", () => {
+  const h = new Array(64).fill(0);
+  h[classeDe(5000)] = 10;
+  const bas = 300 * Math.pow(100, classeDe(5000) / 64), haut = 300 * Math.pow(100, (classeDe(5000) + 1) / 64);
+  const med = M.quantileHistogramme(h, BORNES_TEST, 0.5);
+  assert.ok(med >= bas && med <= haut);
+  assert.equal(M.quantileHistogramme(new Array(64).fill(0), BORNES_TEST, 0.5), null);
+  h[classeDe(10000)] = 30;
+  assert.ok(M.quantileHistogramme(h, BORNES_TEST, 0.75) > 9000);
+});
+
+test("prix du quartier : élargissement quand les ventes sont rares", () => {
+  const grille = { lat: 0.0027, lon: 0.004 };
+  const lat = 45.76, lon = 4.84;
+  const i = Math.floor(lat / grille.lat), j = Math.floor(lon / grille.lon);
+  const q = { periode: "2023-2025", grille, bornes: BORNES_TEST, carres: {
+    [`${i}:${j}`]: { a: [[classeDe(4000), 12]] },
+    [`${i + 2}:${j}`]: { a: [[classeDe(6000), 15]] }
+  } };
+  const e = M.estimationQuartier(q, lat, lon, "appartement");
+  assert.equal(e.n, 27);              // 12 ventes ne suffisent pas : le voisinage s'élargit à 2 carrés
+  assert.equal(e.niveau, "quartier");
+  assert.ok(e.rayon > 500);
+  assert.equal(M.estimationQuartier(q, lat, lon, "maison"), null);
+  assert.equal(M.estimationQuartier(null, lat, lon, "appartement"), null);
+  q.carres[`${i}:${j}`].a = [[classeDe(4000), 25]];
+  const proche = M.estimationQuartier(q, lat, lon, "appartement");
+  assert.equal(proche.n, 25);
+  assert.ok(proche.med > 3700 && proche.med < 4300);
+});

@@ -298,8 +298,11 @@ td.sel, tr.sel td { box-shadow: inset 0 0 0 2px var(--accent) !important; }
       <details class="group essentiel" open>
         <summary>Localisation et surface</summary>
         <div class="fields">
-          <div class="field large" data-essentiel><label for="lieu">Commune ou code postal</label><div class="ctrl ctrl-lieu"><input id="lieu" type="text" autocomplete="off" spellcheck="false" placeholder="Lyon, Saint-Malo ou 69003" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="lieuSuggestions" value="" data-texte><ul class="suggestions-lieu" id="lieuSuggestions" role="listbox" aria-label="Communes" hidden></ul></div></div>
+          <div class="field large" data-essentiel><label for="lieu">Adresse<small>numéro et rue pour les prix du quartier, ou simplement une ville ou un code postal</small></label><div class="ctrl ctrl-lieu"><input id="lieu" type="text" autocomplete="off" spellcheck="false" placeholder="12 rue Garibaldi, Lyon" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="lieuSuggestions" value="" data-texte><ul class="suggestions-lieu" id="lieuSuggestions" role="listbox" aria-label="Adresses" hidden></ul></div></div>
           <input type="hidden" id="codePostal" value="" data-texte>
+          <input type="hidden" id="latitude" value="" data-texte>
+          <input type="hidden" id="longitude" value="" data-texte>
+          <input type="hidden" id="precision" value="" data-texte>
           <div class="field" data-essentiel><label for="commune">Commune</label><div class="ctrl"><select id="commune" data-texte><option value="">—</option></select></div></div>
           <div class="field" data-essentiel><label for="typeLogement">Type de logement</label><div class="ctrl"><select id="typeLogement"><option value="appartement">Appartement</option><option value="maison">Maison</option></select></div></div>
           <div class="field" data-essentiel><label for="surface">Surface habitable</label><div class="ctrl"><input id="surface" type="number" step="1" min="0" value="45"><span class="u">m²</span></div></div>
@@ -1271,6 +1274,15 @@ td.sel, tr.sel td { box-shadow: inset 0 0 0 2px var(--accent) !important; }
     return res.json();
   }
 
+  const quartiers = new Map();
+  function chargerQuartiers(dep) {
+    if (!quartiers.has(dep)) {
+      quartiers.set(dep, chargerJSON(`donnees/quartiers/${dep}.json`).then(d => { quartiers.set(dep, d); update(); return d; }).catch(() => { quartiers.set(dep, null); return null; }));
+    }
+    const q = quartiers.get(dep);
+    return q && typeof q.then !== "function" ? q : null;
+  }
+
   async function chargerDepartement(dep) {
     if (marche.departements.has(dep)) return marche.departements.get(dep);
     const promesse = chargerJSON(`donnees/marche/${dep}.json`).catch(e => { marche.departements.delete(dep); throw e; });
@@ -1340,17 +1352,25 @@ td.sel, tr.sel td { box-shadow: inset 0 0 0 2px var(--accent) !important; }
       : `Aucune commune connue pour le code postal ${esc(marche.cp)} dans les données de ventes.`);
     const c = communeChoisie(p);
     const est = Moteur.estimationMarche(c.fiche, p.typeLogement, p.surface);
+    // À l'adresse : prix des ventes autour du point, s'il y en a assez ; l'évolution reste celle de la commune
+    let quartier = null;
+    const lat = parseFloat(p.latitude), lon = parseFloat(p.longitude);
+    if (est && isFinite(lat) && isFinite(lon)) {
+      quartier = Moteur.estimationQuartier(chargerQuartiers(c.dep), lat, lon, p.typeLogement);
+      if (quartier) est.prix = Object.assign({}, quartier, { valeur: quartier.med * p.surface, fiable: true, evolution: est.prix ? est.prix.evolution : null, anneesEvolution: est.prix ? est.prix.anneesEvolution : null, communeMed: est.prix ? est.prix.med : null });
+    }
     estimationCourante = { est, c, p };
     const s = p.surface;
     const lignes = [];
-    const lieu = est && est.prix && est.prix.niveau === "departement" ? `département (${est.prix.nCommune} vente(s) seulement dans la commune)` : "commune";
+    const lieu = !est || !est.prix ? "" : est.prix.niveau === "departement" ? `département (${est.prix.nCommune} vente(s) seulement dans la commune)` : est.prix.niveau === "quartier" ? `quartier, environ ${est.prix.rayon} m autour de l'adresse` : "commune";
     if (est && est.prix) {
-      lignes.push(["Prix des ventes", `${fmt(est.prix.med)}/m² en médiane ; la moitié des ventes entre ${fmt(est.prix.q1)} et ${fmt(est.prix.q3)}/m²`, `${est.prix.n.toLocaleString("fr-FR")} ventes ${est.type === "maison" ? "de maisons" : "d'appartements"}, ${est.prix.periode}, ${lieu}`]);
+      lignes.push([est.prix.niveau === "quartier" ? "Prix des ventes du quartier" : "Prix des ventes", `${fmt(est.prix.med)}/m² en médiane ; la moitié des ventes entre ${fmt(est.prix.q1)} et ${fmt(est.prix.q3)}/m²`, `${est.prix.n.toLocaleString("fr-FR")} ventes ${est.type === "maison" ? "de maisons" : "d'appartements"}, ${est.prix.periode}, ${lieu}`]);
+      if (est.prix.niveau === "quartier" && est.prix.communeMed) lignes.push(["Prix de la commune", `${fmt(est.prix.communeMed)}/m² en médiane`, `écart du quartier : ${((est.prix.med / est.prix.communeMed - 1) * 100).toLocaleString("fr-FR", { maximumFractionDigits: 0, signDisplay: "always" })} %`]);
       if (s > 0) lignes.push(["Votre prix", `${fmt(p.prix / s)}/m², soit ${((p.prix / s / est.prix.med - 1) * 100).toLocaleString("fr-FR", { maximumFractionDigits: 0, signDisplay: "always" })} % par rapport à la médiane`, `valeur médiane pour ${s} m² : ${fmt(est.prix.valeur)}`]);
       if (est.prix.evolution != null) lignes.push(["Évolution des prix", `${(est.prix.evolution * 100).toLocaleString("fr-FR", { maximumFractionDigits: 1, signDisplay: "always" })} % par an`, `tendance des médianes annuelles ${est.prix.anneesEvolution}, qui ne préjuge pas de l'avenir ; hypothèse saisie ${p.valo.toLocaleString("fr-FR")} %`]);
     } else lignes.push(["Prix des ventes", "Pas assez de ventes comparables", ""]);
     if (est && est.loyer) {
-      lignes.push(["Loyers d'annonce", `${est.loyer.m2.toLocaleString("fr-FR", { maximumFractionDigits: 1 })} €/m²` + (est.loyer.bas ? ` (entre ${est.loyer.bas.toLocaleString("fr-FR", { maximumFractionDigits: 1 })} et ${est.loyer.haut.toLocaleString("fr-FR", { maximumFractionDigits: 1 })} €/m²)` : ""), "charges comprises, logements vides" + (est.loyer.fiabilite ? `, estimation au niveau ${est.loyer.fiabilite}` : "")]);
+      lignes.push(["Loyers d'annonce", `${est.loyer.m2.toLocaleString("fr-FR", { maximumFractionDigits: 1 })} €/m²` + (est.loyer.bas ? ` (entre ${est.loyer.bas.toLocaleString("fr-FR", { maximumFractionDigits: 1 })} et ${est.loyer.haut.toLocaleString("fr-FR", { maximumFractionDigits: 1 })} €/m²)` : ""), "charges comprises, logements vides, niveau commune (pas de données publiques par quartier)" + (est.loyer.fiabilite === "maille" ? ", estimé à partir des communes voisines" : "")]);
       if (s > 0) lignes.push(["Loyer estimé", `${fmt(est.loyer.mensuel)} par mois` + (est.loyer.bas ? ` (${fmt(est.loyer.mensuelBas)} à ${fmt(est.loyer.mensuelHaut)})` : ""), `pour ${s} m², charges comprises ; loyer saisi ${fmt(p.loyerNu)} hors charges`]);
     } else lignes.push(["Loyers d'annonce", "Indisponibles pour cette commune", ""]);
     if (est && est.rendementBrut) lignes.push(["Rendement brut du marché", pct(est.rendementBrut), "loyer d'annonce / prix médian, avant frais"]);
@@ -1420,16 +1440,41 @@ td.sel, tr.sel td { box-shadow: inset 0 0 0 2px var(--accent) !important; }
     if (message) {
       listeLieux.innerHTML = `<li class="vide" role="presentation">${esc(message)}</li>`;
     } else {
-      listeLieux.innerHTML = suggestions.map((c, i) => `<li role="option" id="lieu-${i}" data-i="${i}" aria-selected="${i === suggestionActive}">${esc(c.nom)} <span class="hint">${esc(c.cps[0] || "")}${c.cps.length > 1 ? " …" : ""} · ${esc(c.dep)}</span></li>`).join("");
+      listeLieux.innerHTML = suggestions.map((c, i) => `<li role="option" id="lieu-${i}" data-i="${i}" aria-selected="${i === suggestionActive}"><span>${esc(c.titre)}</span> <span class="hint">${esc(c.detail)}</span></li>`).join("");
     }
     listeLieux.hidden = false;
     lieu.setAttribute("aria-expanded", "true");
     if (suggestionActive >= 0) lieu.setAttribute("aria-activedescendant", "lieu-" + suggestionActive);
   }
 
-  function choisirCommune(c) {
-    lieu.value = `${c.nom} (${c.cps[0] || c.dep})`;
-    document.getElementById("codePostal").value = c.cps[0] || "";
+  // Service public de géocodage (IGN, Géoplateforme) : adresses, rues, lieux-dits et communes
+  const GEOCODEUR = "https://data.geopf.fr/geocodage/search";
+  const TYPES_LIEU = { housenumber: "adresse", street: "rue", locality: "lieu-dit", municipality: "commune" };
+  async function geocoder(texte) {
+    const ctrl = new AbortController();
+    const delai = setTimeout(() => ctrl.abort(), 4000);
+    try {
+      const res = await fetch(`${GEOCODEUR}?q=${encodeURIComponent(texte)}&autocomplete=1&limit=6`, { signal: ctrl.signal });
+      if (!res.ok) throw new Error("HTTP " + res.status);
+      const d = await res.json();
+      return (d.features || []).filter(f => f.properties && f.properties.postcode).map(f => {
+        const pr = f.properties, [lon, lat] = f.geometry.coordinates;
+        return {
+          titre: pr.label, detail: [TYPES_LIEU[pr.type] || pr.type, pr.context].filter(Boolean).join(" · "),
+          cp: pr.postcode, code: pr.citycode, lat, lon, precision: pr.type
+        };
+      });
+    } finally { clearTimeout(delai); }
+  }
+  let geocodeurIndisponible = false;
+
+  function choisirLieu(c) {
+    lieu.value = c.titre;
+    document.getElementById("codePostal").value = c.cp || "";
+    const precis = c.precision && c.precision !== "municipality";
+    document.getElementById("latitude").value = precis ? c.lat : "";
+    document.getElementById("longitude").value = precis ? c.lon : "";
+    document.getElementById("precision").value = precis ? c.precision : "";
     document.getElementById("commune").dataset.voulue = c.code;
     fermerSuggestions();
     marche.cp = null;
@@ -1440,6 +1485,7 @@ td.sel, tr.sel td { box-shadow: inset 0 0 0 2px var(--accent) !important; }
   lieu.addEventListener("input", () => {
     clearTimeout(timerLieu);
     const v = lieu.value.trim();
+    ["latitude", "longitude", "precision"].forEach(id => { document.getElementById(id).value = ""; });
     if (/^\d+$/.test(v) || !v) {
       fermerSuggestions();
       document.getElementById("codePostal").value = v.length === 5 || !v ? v : "";
@@ -1447,17 +1493,23 @@ td.sel, tr.sel td { box-shadow: inset 0 0 0 2px var(--accent) !important; }
       return;
     }
     timerLieu = setTimeout(async () => {
-      try {
-        const liste = await chargerIndex();
-        if (lieu.value.trim() !== v) return;
-        suggestions = chercherCommunes(liste, v);
-        suggestionActive = suggestions.length ? 0 : -1;
-        afficherSuggestions(suggestions.length ? null : normaliser(v).length < 2 ? "Saisissez au moins 2 lettres." : "Aucune commune trouvée.");
-      } catch (e) {
-        suggestions = [];
-        afficherSuggestions("La liste des communes n'a pas pu être chargée. Saisissez le code postal.");
+      let res = null;
+      if (!geocodeurIndisponible && v.length >= 3) {
+        try { res = await geocoder(v); }
+        catch (e) { geocodeurIndisponible = true; }
       }
-    }, 150);
+      if (res === null) {
+        // Repli : recherche locale parmi les communes (sans précision à l'adresse)
+        try {
+          const liste = await chargerIndex();
+          res = chercherCommunes(liste, v).map(c => ({ titre: c.nom, detail: `commune · ${c.cps[0] || ""}${c.cps.length > 1 ? " …" : ""} · ${c.dep}`, cp: c.cps[0], code: c.code, precision: "municipality" }));
+        } catch (e) { res = []; }
+      }
+      if (lieu.value.trim() !== v) return;
+      suggestions = res;
+      suggestionActive = suggestions.length ? 0 : -1;
+      afficherSuggestions(suggestions.length ? null : normaliser(v).length < 2 ? "Saisissez au moins 2 lettres." : geocodeurIndisponible ? "Aucune commune trouvée. La recherche d'adresse ne répond pas : saisissez une ville ou un code postal." : "Aucune adresse trouvée.");
+    }, 250);
   });
   lieu.addEventListener("keydown", e => {
     if (listeLieux.hidden || !suggestions.length) return;
@@ -1467,17 +1519,21 @@ td.sel, tr.sel td { box-shadow: inset 0 0 0 2px var(--accent) !important; }
       afficherSuggestions();
     } else if (e.key === "Enter") {
       e.preventDefault();
-      if (suggestionActive >= 0) choisirCommune(suggestions[suggestionActive]);
+      if (suggestionActive >= 0) choisirLieu(suggestions[suggestionActive]);
     } else if (e.key === "Escape") fermerSuggestions();
   });
   listeLieux.addEventListener("mousedown", e => {
     const li = e.target.closest("li[data-i]");
-    if (li) { e.preventDefault(); choisirCommune(suggestions[+li.dataset.i]); }
+    if (li) { e.preventDefault(); choisirLieu(suggestions[+li.dataset.i]); }
   });
   lieu.addEventListener("blur", () => setTimeout(fermerSuggestions, 100));
   document.getElementById("commune").addEventListener("change", () => {
     const c = marche.communes.find(x => x.code === document.getElementById("commune").value);
-    if (c) lieu.value = `${c.fiche.nom} (${marche.cp})`;
+    if (c) {
+      lieu.value = `${c.fiche.nom} (${marche.cp})`;
+      ["latitude", "longitude", "precision"].forEach(id => { document.getElementById(id).value = ""; });
+      update();
+    }
   });
 
   // ---------- Tableaux larges : ombre de débordement ----------

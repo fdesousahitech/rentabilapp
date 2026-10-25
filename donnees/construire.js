@@ -4,7 +4,8 @@
  *   - DVF géolocalisées (ventes immobilières, DGFiP / Etalab) : prix au m² par commune et type de logement
  *   - Carte des loyers (ministère du Logement) : loyer d'annonce au m² par commune
  *
- * Sortie : donnees/marche/<département>.json et donnees/marche/meta.json
+ * Sortie : donnees/marche/<département>.json, donnees/marche/meta.json et donnees/quartiers/<département>.json
+ * (histogrammes de prix au m² par carré d'environ 300 m, pour les estimations à l'échelle du quartier)
  * Exécution : node donnees/construire.js (Node 20 ou plus, sans dépendance). Lancé par
  * .github/workflows/donnees.yml, l'environnement de développement n'ayant pas accès à data.gouv.fr.
  *
@@ -24,6 +25,13 @@ const DVF_BASE = "https://files.data.gouv.fr/geo-dvf/latest/csv";
 const LOYERS_DATASET = "https://www.data.gouv.fr/api/1/datasets/693aa2feed1bf4da603faa49/";
 const ANNEES_RECENTES = 3;
 const VENTES_MIN_ANNEE = 10;
+const SORTIE_QUARTIERS = path.join(__dirname, "quartiers");
+// Carrés d'environ 300 m ; prix au m² répartis en 64 classes logarithmiques de 300 à 30 000 €/m².
+// Un carré n'est publié qu'à partir de 5 ventes par type de logement : seuls des comptages sortent, jamais une vente.
+const GRILLE = { lat: 0.0027, lon: 0.004 };
+const BORNES = { min: 300, max: 30000, n: 64 };
+const VENTES_MIN_CARRE = 5;
+const GEOCODAGE_TEST = "https://data.geopf.fr/geocodage/search?q=20%20avenue%20de%20Segur%20Paris&autocomplete=1&limit=1";
 const DEPARTEMENTS = [];
 for (let i = 1; i <= 95; i++) {
   if (i === 20) DEPARTEMENTS.push("2A", "2B");
@@ -106,7 +114,7 @@ async function lireDVF(annee, dep, communes) {
     if (!idx) {
       const h = decouperCSV(ligne, ",");
       idx = Object.fromEntries(h.map((k, i) => [k, i]));
-      ["id_mutation", "nature_mutation", "valeur_fonciere", "code_postal", "code_commune", "nom_commune", "type_local", "surface_reelle_bati", "nombre_pieces_principales"]
+      ["id_mutation", "nature_mutation", "valeur_fonciere", "code_postal", "code_commune", "nom_commune", "type_local", "surface_reelle_bati", "nombre_pieces_principales", "longitude", "latitude"]
         .forEach(k => { if (!(k in idx)) throw new Error(`Colonne DVF absente : ${k} (${h.join(",")})`); });
       continue;
     }
@@ -120,7 +128,7 @@ async function lireDVF(annee, dep, communes) {
     if (c[idx.nature_mutation] !== "Vente") continue;
     const id = c[idx.id_mutation];
     let m = mutations.get(id);
-    if (!m) { m = { valeur: nombre(c[idx.valeur_fonciere]), com, locaux: new Map(), autre: false }; mutations.set(id, m); }
+    if (!m) { m = { valeur: nombre(c[idx.valeur_fonciere]), com, lat: nombre(c[idx.latitude]), lon: nombre(c[idx.longitude]), locaux: new Map(), autre: false }; mutations.set(id, m); }
     const type = c[idx.type_local];
     if (type === "Appartement" || type === "Maison") {
       const surf = nombre(c[idx.surface_reelle_bati]);
@@ -134,7 +142,7 @@ async function lireDVF(annee, dep, communes) {
     if (!(l.surf >= 9)) continue;
     const m2 = m.valeur / l.surf;
     if (m2 < 200 || m2 > 30000) continue;
-    ventes.push({ com: m.com, type: l.type === "Maison" ? "maison" : "appartement", annee, m2 });
+    ventes.push({ com: m.com, type: l.type === "Maison" ? "maison" : "appartement", annee, m2, lat: m.lat, lon: m.lon });
   }
   return ventes;
 }
@@ -158,6 +166,47 @@ function agreger(ventes, anneesRecentes, toutesAnnees) {
     out.anneesEvolution = `${pts[0][0]}-${pts[pts.length - 1][0]}`;
   }
   return out;
+}
+
+// Histogrammes de prix par carré de la grille, sur la période récente
+function quartiers(ventes, anneesRecentes) {
+  const echelle = Math.log(BORNES.max / BORNES.min);
+  const classe = m2 => Math.max(0, Math.min(BORNES.n - 1, Math.floor(Math.log(m2 / BORNES.min) / echelle * BORNES.n)));
+  const carres = {};
+  ventes.forEach(v => {
+    if (v.lat == null || v.lon == null || !anneesRecentes.includes(v.annee)) return;
+    const k = `${Math.floor(v.lat / GRILLE.lat)}:${Math.floor(v.lon / GRILLE.lon)}`;
+    const t = carres[k] = carres[k] || {};
+    const h = t[v.type] = t[v.type] || {};
+    const b = classe(v.m2);
+    h[b] = (h[b] || 0) + 1;
+  });
+  const sortie = {};
+  for (const [k, t] of Object.entries(carres)) {
+    const o = {};
+    for (const [type, h] of Object.entries(t)) {
+      const n = Object.values(h).reduce((s, c) => s + c, 0);
+      if (n >= VENTES_MIN_CARRE) o[type === "maison" ? "m" : "a"] = Object.entries(h).map(([b, c]) => [+b, c]).sort((x, y) => x[0] - y[0]);
+    }
+    if (Object.keys(o).length) sortie[k] = o;
+  }
+  return sortie;
+}
+
+// Contrôle du service de géocodage utilisé par l'application : statut, en-tête CORS et forme de la réponse
+async function verifierGeocodage() {
+  try {
+    const res = await fetch(GEOCODAGE_TEST, { headers: { Origin: "https://rentabilapp.github.io" } });
+    const cors = res.headers.get("access-control-allow-origin");
+    const d = await res.json();
+    const f = d.features && d.features[0];
+    log(`Géocodage : HTTP ${res.status}, CORS « ${cors} », ${d.features ? d.features.length : 0} résultat(s)`);
+    if (f) log(`  propriétés : ${JSON.stringify(f.properties)} ; coordonnées : ${JSON.stringify(f.geometry && f.geometry.coordinates)}`);
+    return { statut: res.status, cors, proprietes: f ? Object.keys(f.properties) : [] };
+  } catch (e) {
+    log(`Géocodage : échec du contrôle (${e.message})`);
+    return { erreur: e.message };
+  }
 }
 
 // ---------- Carte des loyers ----------
@@ -207,13 +256,15 @@ async function lireLoyers() {
 
 (async () => {
   fs.mkdirSync(SORTIE, { recursive: true });
+  fs.mkdirSync(SORTIE_QUARTIERS, { recursive: true });
+  const geocodage = await verifierGeocodage();
   const loyers = await lireLoyers();
   const annees = await anneesDVF();
   if (annees.length < 2) throw new Error(`Années DVF introuvables (${annees.join(", ")})`);
   const recentes = annees.slice(-ANNEES_RECENTES);
   log(`DVF : années ${annees.join(", ")}, période récente ${recentes.join(", ")}`);
 
-  let totalVentes = 0, communesAvecPrix = 0, communesAvecLoyer = 0, nbCommunes = 0;
+  let totalVentes = 0, communesAvecPrix = 0, communesAvecLoyer = 0, nbCommunes = 0, nbCarres = 0;
   const disponibles = [];
   await parallele(DEPARTEMENTS.map(dep => async () => {
     const communes = new Map();
@@ -245,6 +296,9 @@ async function lireLoyers() {
     }
     Object.values(sortie.codesPostaux).forEach(l => l.sort());
     fs.writeFileSync(path.join(SORTIE, `${dep}.json`), JSON.stringify(sortie));
+    const carres = quartiers(ventes, recentes);
+    fs.writeFileSync(path.join(SORTIE_QUARTIERS, `${dep}.json`), JSON.stringify({ departement: dep, periode: `${recentes[0]}-${recentes[recentes.length - 1]}`, grille: GRILLE, bornes: BORNES, carres }));
+    nbCarres += Object.keys(carres).length;
     disponibles.push(dep);
     log(`  ${dep} : ${communes.size} communes, ${ventes.length} ventes retenues`);
   }), 6);
@@ -255,6 +309,8 @@ async function lireLoyers() {
     disponibles: DEPARTEMENTS.filter(d => disponibles.includes(d)),
     dvf: { source: "https://www.data.gouv.fr/datasets/demandes-de-valeurs-foncieres-geolocalisees/", annees, periodeRecente: `${recentes[0]}-${recentes[recentes.length - 1]}`, ventesRetenues: totalVentes },
     loyers: { source: loyers.page, titre: loyers.titre, ressources: loyers.ressources },
+    quartiers: { grille: GRILLE, bornes: BORNES, ventesMinimumParCarre: VENTES_MIN_CARRE, carres: nbCarres },
+    geocodage,
     couverture: { communes: nbCommunes, communesAvecPrix, communesAvecLoyer }
   };
   fs.writeFileSync(path.join(SORTIE, "meta.json"), JSON.stringify(meta, null, 2));

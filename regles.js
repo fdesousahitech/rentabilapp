@@ -141,6 +141,7 @@
       statut: "a_verifier",
       source: "DVF géolocalisées (DGFiP, Etalab) ; Carte des loyers (ministère du Logement, ANIL) ; agrégats calculés par donnees/construire.js",
       ventesMinimum: 10,
+      ventesMinimumQuartier: 20,
       ecartValorisationAlerte: 0.01
     },
 
