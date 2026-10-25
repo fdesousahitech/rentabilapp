@@ -743,6 +743,75 @@
     };
   }
 
+  // ---------- Données de marché ----------
+
+  // Frais d'acquisition : droits de mutation, émoluments TTC, contribution de sécurité immobilière, débours
+  function fraisNotaire(prix, type, tauxDepartemental) {
+    const F = REGLES.fraisNotaire;
+    const tDep = tauxDepartemental == null ? F.tauxDepartementalDefaut : tauxDepartemental;
+    const droits = type === "neuf" ? prix * F.tauxNeuf : prix * (tDep + F.tauxCommunal + tDep * F.fraisAssiette);
+    let emol = 0, bas = 0;
+    F.emoluments.forEach(([haut, taux]) => { if (prix > bas) emol += (Math.min(prix, haut) - bas) * taux; bas = haut; });
+    const emolumentsTTC = emol * (1 + F.tva);
+    const csi = Math.max(F.contributionMinimale, prix * F.contributionSecuriteImmobiliere);
+    const total = droits + emolumentsTTC + csi + F.debours;
+    return {
+      total, taux: prix > 0 ? total / prix : 0, droits, emoluments: emolumentsTTC, csi, debours: F.debours,
+      trace: [
+        type === "neuf" ? `Taxe de publicité foncière (neuf) : ${e(prix)} × 0,715 % = ${e(droits)}` : `Droits de mutation : ${e(prix)} × (${nf2.format(tDep * 100)} % département + 1,20 % commune + frais d'assiette) = ${e(droits)}`,
+        `Émoluments du notaire TTC : ${e(emolumentsTTC)} ; contribution de sécurité immobilière : ${e(csi)} ; débours estimés : ${e(F.debours)}`,
+        `Total : ${e(total)}, soit ${pc(prix > 0 ? total / prix : 0)} du prix`
+      ]
+    };
+  }
+
+  function defautsSurface(surface) {
+    const S = REGLES.estimationsSurface;
+    const s = Math.max(0, surface || 0);
+    return {
+      mobilier: Math.round(Math.max(S.mobilierMin, s * S.mobilierM2) / 100) * 100,
+      entretien: Math.round(s * S.entretienM2 / 10) * 10,
+      pno: Math.round(Math.max(S.pnoMin, s * S.pnoM2) / 10) * 10
+    };
+  }
+
+  // Estimation à partir des agrégats d'une commune (fichier donnees/marche/<département>.json)
+  function estimationMarche(commune, typeLogement, surface) {
+    if (!commune) return null;
+    const t = typeLogement === "maison" ? "maison" : "appartement";
+    const L = commune.loyers && commune.loyers[t];
+    const P = commune.prix && commune.prix[t];
+    const s = Math.max(0, surface || 0);
+    const est = { type: t, surface: s, loyer: null, prix: null };
+    if (L && L.m2 > 0) est.loyer = { m2: L.m2, bas: L.bas, haut: L.haut, mensuel: L.m2 * s, mensuelBas: (L.bas || L.m2) * s, mensuelHaut: (L.haut || L.m2) * s, observations: L.n, fiabilite: L.fiabilite };
+    if (P && P.n > 0) est.prix = Object.assign({}, P, { valeur: P.med * s, fiable: P.n >= REGLES.marche.ventesMinimum, niveau: P.niveau || "commune" });
+    if (est.loyer && est.prix) est.rendementBrut = est.loyer.m2 * 12 / est.prix.med;
+    return est;
+  }
+
+  // Écarts entre la saisie et le marché local
+  function alertesMarche(p, est) {
+    const out = [];
+    if (!est) return out;
+    const s = est.surface;
+    if (est.prix && s > 0) {
+      const m2 = p.prix / s;
+      const lieu = est.prix.niveau === "departement" ? "du département" : "de la commune";
+      if (!est.prix.fiable) out.push({ niveau: "info", message: `Seulement ${est.prix.n} ventes comparables : la référence de prix est peu fiable.` });
+      else if (m2 > est.prix.q3) out.push({ niveau: "alerte", message: `Prix de ${e(m2)}/m² : au-dessus des trois quarts des ventes ${lieu} (médiane ${e(est.prix.med)}/m², 75 % des ventes sous ${e(est.prix.q3)}/m²).` });
+      else if (m2 < est.prix.q1) out.push({ niveau: "info", message: `Prix de ${e(m2)}/m² : sous le premier quart des ventes ${lieu} (médiane ${e(est.prix.med)}/m²). Vérifiez l'état du bien et les travaux à prévoir.` });
+      if (est.prix.evolution != null && p.valo / 100 > est.prix.evolution + REGLES.marche.ecartValorisationAlerte) {
+        out.push({ niveau: "alerte", message: `Valorisation saisie de ${nf2.format(p.valo)} % par an, contre ${nf2.format(est.prix.evolution * 100)} % par an observés ${lieu} sur ${est.prix.anneesEvolution}.` });
+      }
+    }
+    if (est.loyer && s > 0) {
+      const m2 = p.loyerNu / s;
+      if (est.loyer.haut && m2 > est.loyer.haut) out.push({ niveau: "alerte", message: `Loyer de ${nf2.format(m2)} €/m² : au-dessus de la fourchette haute des annonces (${nf2.format(est.loyer.haut)} €/m², charges comprises).` });
+      else if (est.loyer.bas && m2 < est.loyer.bas * 0.85) out.push({ niveau: "info", message: `Loyer de ${nf2.format(m2)} €/m² : nettement sous les annonces locales (${nf2.format(est.loyer.m2)} €/m², charges comprises).` });
+    }
+    return out;
+  }
+
   // ---------- Contrôle des saisies ----------
 
   function valider(p) {
@@ -780,6 +849,6 @@
     REGLES, REGIMES, pret, impotRevenu, tmi, impotSocietes, abattementIR, abattementPS, surtaxePV,
     plusValueParticuliers, creerReport, jeanbrun, irr, van, simuler, comparer, tauxEffort, valider,
     SEUIL_SIGNIFICATIF, VARIABLES, SCENARIOS, verdict, suggestions, sensibilite, seuils, horizons, scenarios,
-    decomposition, syntheseBien
+    decomposition, syntheseBien, fraisNotaire, defautsSurface, estimationMarche, alertesMarche
   };
 });

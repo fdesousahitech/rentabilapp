@@ -354,3 +354,53 @@ test("synthèse d'un bien : retient le régime au meilleur TRI", () => {
   proche(s.tri, best.tri, 1e-12);
   assert.ok(s.verdict.titre);
 });
+
+// ---------- Données de marché ----------
+
+test("frais de notaire : ancien et neuf", () => {
+  // Ancien, 200 000 €, département à 5 % : droits 200 000 × (5 % + 1,2 % + 5 % × 2,37 %) = 12 637
+  // Émoluments HT : 251,55 + 167,58 + 457,52 + 1 118,60 = 1 995,25 → TTC 2 394,30
+  // CSI 200 ; débours 1 200 ; total 16 431,30
+  const a = M.fraisNotaire(200000, "ancien", 0.05);
+  proche(a.droits, 12637, 0.01);
+  proche(a.emoluments, 2394.30, 0.01);
+  proche(a.total, 16431.30, 0.01);
+  const n = M.fraisNotaire(200000, "neuf", 0.05);
+  proche(n.droits, 1430, 0.01);
+  assert.ok(n.taux < 0.035);
+  assert.equal(M.fraisNotaire(1000, "ancien").csi, 15);
+});
+
+test("valeurs par défaut liées à la surface", () => {
+  assert.deepEqual(M.defautsSurface(40), { mobilier: 4800, entretien: 320, pno: 100 });
+  assert.equal(M.defautsSurface(10).mobilier, 3000);
+});
+
+// Agrégats fictifs construits pour le test (pas des données réelles)
+const COMMUNE_TEST = {
+  nom: "Commune test",
+  loyers: { appartement: { m2: 15, bas: 12, haut: 18, n: 500 } },
+  prix: { appartement: { med: 4000, q1: 3400, q3: 4700, n: 250, evolution: 0.01, anneesEvolution: "2021-2025" } }
+};
+
+test("estimation de marché : loyer, prix et rendement", () => {
+  const est = M.estimationMarche(COMMUNE_TEST, "appartement", 50);
+  proche(est.loyer.mensuel, 750);
+  proche(est.loyer.mensuelHaut, 900);
+  proche(est.prix.valeur, 200000);
+  proche(est.rendementBrut, 15 * 12 / 4000, 1e-12);
+  assert.equal(est.prix.fiable, true);
+  assert.equal(M.estimationMarche(COMMUNE_TEST, "maison", 50).prix, null);
+  assert.equal(M.estimationMarche(null, "appartement", 50), null);
+});
+
+test("alertes de marché : prix, loyer et valorisation", () => {
+  const est = M.estimationMarche(COMMUNE_TEST, "appartement", 50);
+  const msgs = p => M.alertesMarche(avec(p), est).map(a => a.niveau);
+  assert.deepEqual(msgs({ prix: 200000, loyerNu: 750, valo: 1.5 }), []);
+  assert.ok(msgs({ prix: 260000, loyerNu: 750, valo: 1.5 }).includes("alerte"));     // 5 200 €/m² > Q3
+  assert.ok(msgs({ prix: 200000, loyerNu: 1000, valo: 1.5 }).includes("alerte"));    // 20 €/m² > 18
+  assert.ok(msgs({ prix: 200000, loyerNu: 750, valo: 3 }).includes("alerte"));       // 3 % > 1 % + 1 pt
+  const peu = M.estimationMarche({ prix: { appartement: { med: 4000, q1: 3000, q3: 5000, n: 4 } } }, "appartement", 50);
+  assert.deepEqual(M.alertesMarche(EXEMPLE, peu).map(a => a.niveau), ["info"]);
+});

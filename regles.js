@@ -122,6 +122,36 @@
       plafonds: { inter: 8000, social: 10000, tres: 12000 }
     },
 
+    fraisNotaire: {
+      statut: "a_verifier",
+      source: "Art. A444-91 C. com. (barème des émoluments, prorogé jusqu'au 29 février 2028 par arrêté du 25 février 2026) ; art. 1594 D et 1584 CGI (droits de mutation) ; LF 2025 (taux départemental jusqu'à 5 %)",
+      // Émoluments proportionnels hors taxes : [plafond de la tranche, taux]
+      emoluments: [[6500, 0.03870], [17000, 0.01596], [60000, 0.01064], [Infinity, 0.00799]],
+      tva: 0.20,
+      tauxDepartementalDefaut: 0.05,
+      tauxCommunal: 0.012,
+      fraisAssiette: 0.0237,
+      tauxNeuf: 0.00715,
+      contributionSecuriteImmobiliere: 0.001,
+      contributionMinimale: 15,
+      debours: 1200
+    },
+
+    marche: {
+      statut: "a_verifier",
+      source: "DVF géolocalisées (DGFiP, Etalab) ; Carte des loyers (ministère du Logement, ANIL) ; agrégats calculés par immo/donnees/construire.js",
+      ventesMinimum: 10,
+      ecartValorisationAlerte: 0.01
+    },
+
+    estimationsSurface: {
+      statut: "a_verifier",
+      source: "Règles empiriques de marché, à ajuster : mobilier 120 €/m² (3 000 € minimum), entretien 8 €/m²/an, assurance propriétaire non occupant 2,5 €/m²/an (90 € minimum)",
+      mobilierM2: 120, mobilierMin: 3000,
+      entretienM2: 8,
+      pnoM2: 2.5, pnoMin: 90
+    },
+
     hcsf: {
       statut: "officiel",
       source: "Décision HCSF D-HCSF-2021-7 modifiée ; prise en compte de 70 % des loyers : pratique bancaire courante, pas une règle HCSF",
