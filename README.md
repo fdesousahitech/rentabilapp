@@ -1,6 +1,6 @@
 # rentabilapp
 
-Comparateur fiscal locatif, en ligne sur https://fdesousahitech.github.io/rentabilapp/
+Comparateur fiscal locatif, en ligne sur https://rentabilapp.github.io/
 
 Application web autonome (sans dépendance ni build) qui compare la rentabilité d'un même investissement locatif selon cinq modes de détention : location nue (micro-foncier ou réel), LMNP (micro-BIC ou réel), SCI à l'IR, SCI à l'IS et dispositif Jeanbrun.
 
