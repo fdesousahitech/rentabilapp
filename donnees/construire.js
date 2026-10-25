@@ -17,6 +17,7 @@ const path = require("node:path");
 const zlib = require("node:zlib");
 const readline = require("node:readline");
 const { Readable } = require("node:stream");
+const { construireIndex } = require("./index-communes.js");
 
 const SORTIE = path.join(__dirname, "marche");
 const DVF_BASE = "https://files.data.gouv.fr/geo-dvf/latest/csv";
@@ -257,5 +258,6 @@ async function lireLoyers() {
     couverture: { communes: nbCommunes, communesAvecPrix, communesAvecLoyer }
   };
   fs.writeFileSync(path.join(SORTIE, "meta.json"), JSON.stringify(meta, null, 2));
+  log(`Index des communes : ${construireIndex(SORTIE)} communes`);
   log("Terminé", JSON.stringify(meta.couverture), `ventes retenues : ${totalVentes}`);
 })().catch(e => { console.error(e); process.exit(1); });

@@ -23,6 +23,7 @@
   --good-soft: #e1f2e8;
   --bad: #b3261e;
   --bad-soft: #fbe4e2;
+  --ombre: rgba(22, 32, 43, 0.22);
   --warn: #8a5a00;
   --warn-soft: #fbf0d9;
   --s-nu: #1d4e89;
@@ -39,7 +40,7 @@
   :root:not([data-theme="light"]) {
     --bg: #0f151c; --surface: #17202a; --fg: #e5eaf0; --muted: #93a0b0; --line: #2a3644;
     --accent: #84b3ea; --accent-soft: #1b2b40; --good: #62c690; --good-soft: #15302a;
-    --bad: #f08a80; --bad-soft: #3a1d1b; --warn: #e2b450; --warn-soft: #33290f;
+    --bad: #f08a80; --bad-soft: #3a1d1b; --ombre: rgba(0, 0, 0, 0.55); --warn: #e2b450; --warn-soft: #33290f;
     --s-nu: #84b3ea; --s-lmnp: #f0935a; --s-sciir: #b79be0; --s-sciis: #5cc9b9; --s-jeanbrun: #ec7fb2;
     color-scheme: dark;
   }
@@ -47,7 +48,7 @@
 :root[data-theme="dark"] {
   --bg: #0f151c; --surface: #17202a; --fg: #e5eaf0; --muted: #93a0b0; --line: #2a3644;
   --accent: #84b3ea; --accent-soft: #1b2b40; --good: #62c690; --good-soft: #15302a;
-  --bad: #f08a80; --bad-soft: #3a1d1b; --warn: #e2b450; --warn-soft: #33290f;
+  --bad: #f08a80; --bad-soft: #3a1d1b; --ombre: rgba(0, 0, 0, 0.55); --warn: #e2b450; --warn-soft: #33290f;
   --s-nu: #84b3ea; --s-lmnp: #f0935a; --s-sciir: #b79be0; --s-sciis: #5cc9b9; --s-jeanbrun: #ec7fb2;
   color-scheme: dark;
 }
@@ -112,6 +113,13 @@ label.bouton:hover { border-color: var(--accent); }
   .resume-mobile.cache { display: none; }
 }
 .marche-lieu { margin: 0; }
+.field.large { grid-template-columns: minmax(0, 1fr); gap: 4px; }
+.ctrl-lieu { position: relative; }
+.ctrl-lieu input { text-align: left; font-family: var(--font-body); }
+.suggestions-lieu { position: absolute; top: calc(100% + 4px); left: 0; right: 0; z-index: 20; margin: 0; padding: 4px; list-style: none; background: var(--surface); border: 1px solid var(--line); border-radius: 6px; box-shadow: 0 6px 20px var(--ombre); max-height: 280px; overflow-y: auto; }
+.suggestions-lieu li { padding: 7px 9px; border-radius: 4px; cursor: pointer; display: flex; justify-content: space-between; gap: 8px; }
+.suggestions-lieu li[aria-selected="true"], .suggestions-lieu li[data-i]:hover { background: var(--accent-soft); color: var(--accent); }
+.suggestions-lieu li.vide { cursor: default; color: var(--muted); }
 .marche { margin: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 10px 20px; }
 .marche div { display: grid; gap: 2px; padding-block: 6px; border-bottom: 1px solid var(--line); }
 .marche dt { font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); }
@@ -158,11 +166,29 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .kpi .v { font: 500 20px var(--font-mono); font-variant-numeric: tabular-nums; }
 .kpi .s { font-size: 12px; color: var(--muted); }
 
-.scroll { overflow-x: auto; }
-table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
+/* Tableaux : en-tête et première colonne figés, barres de défilement visibles, ombre quand une partie est masquée */
+.scroll { overflow: auto; overscroll-behavior-x: contain; scrollbar-width: auto; scrollbar-color: var(--muted) var(--bg); transition: box-shadow .15s; border-radius: 4px; }
+.scroll.long.defile-x { max-height: min(70vh, 640px); }
+td[colspan] { white-space: normal; }
+@media (max-width: 600px) {
+  th, td { padding: 6px 7px; }
+  td { font-size: 12px; }
+  th:first-child, td:first-child { white-space: normal; min-width: 112px; max-width: 140px; font-size: 12px; }
+}
+.scroll:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.scroll::-webkit-scrollbar { height: 12px; width: 12px; }
+.scroll::-webkit-scrollbar-track { background: var(--bg); border-radius: 6px; }
+.scroll::-webkit-scrollbar-thumb { background: var(--muted); border-radius: 6px; border: 3px solid var(--bg); }
+.scroll::-webkit-scrollbar-thumb:hover { background: var(--fg); }
+.scroll.deborde-droite { box-shadow: inset -16px 0 14px -14px var(--ombre); }
+.scroll.deborde-gauche { box-shadow: inset 16px 0 14px -14px var(--ombre); }
+.scroll.deborde-droite.deborde-gauche { box-shadow: inset -16px 0 14px -14px var(--ombre), inset 16px 0 14px -14px var(--ombre); }
+table { border-collapse: separate; border-spacing: 0; width: 100%; font-variant-numeric: tabular-nums; }
 th, td { padding: 7px 10px; border-bottom: 1px solid var(--line); text-align: right; white-space: nowrap; }
-th:first-child, td:first-child { text-align: left; position: sticky; left: 0; background: var(--surface); }
-thead th { font-size: 12px; font-weight: 600; color: var(--muted); vertical-align: bottom; }
+th:first-child, td:first-child { text-align: left; position: sticky; left: 0; z-index: 1; background: var(--surface); }
+thead th { font-size: 12px; font-weight: 600; color: var(--muted); vertical-align: bottom; white-space: normal; min-width: 72px; position: sticky; top: 0; z-index: 2; background: var(--surface); }
+thead th:first-child { z-index: 3; }
+#detail td, #detail th { padding: 6px 8px; font-size: 12.5px; }
 td { font-family: var(--font-mono); font-size: 13px; }
 td:first-child { font-family: var(--font-body); font-size: 13px; color: var(--fg); }
 tr.sep td { border-bottom: 0; padding-top: 14px; font-family: var(--font-body); font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
@@ -272,7 +298,8 @@ td.sel, tr.sel td { box-shadow: inset 0 0 0 2px var(--accent) !important; }
       <details class="group essentiel" open>
         <summary>Localisation et surface</summary>
         <div class="fields">
-          <div class="field" data-essentiel><label for="codePostal">Code postal</label><div class="ctrl"><input id="codePostal" type="text" inputmode="numeric" maxlength="5" pattern="[0-9]{5}" placeholder="69003" value="" data-texte></div></div>
+          <div class="field large" data-essentiel><label for="lieu">Commune ou code postal</label><div class="ctrl ctrl-lieu"><input id="lieu" type="text" autocomplete="off" spellcheck="false" placeholder="Lyon, Saint-Malo ou 69003" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="lieuSuggestions" value="" data-texte><ul class="suggestions-lieu" id="lieuSuggestions" role="listbox" aria-label="Communes" hidden></ul></div></div>
+          <input type="hidden" id="codePostal" value="" data-texte>
           <div class="field" data-essentiel><label for="commune">Commune</label><div class="ctrl"><select id="commune" data-texte><option value="">—</option></select></div></div>
           <div class="field" data-essentiel><label for="typeLogement">Type de logement</label><div class="ctrl"><select id="typeLogement"><option value="appartement">Appartement</option><option value="maison">Maison</option></select></div></div>
           <div class="field" data-essentiel><label for="surface">Surface habitable</label><div class="ctrl"><input id="surface" type="number" step="1" min="0" value="45"><span class="u">m²</span></div></div>
@@ -411,14 +438,14 @@ td.sel, tr.sel td { box-shadow: inset 0 0 0 2px var(--accent) !important; }
 
       <section class="panel" id="panelBiens" aria-labelledby="t-biens" hidden>
         <div class="panel-head"><h2 id="t-biens">Comparaison de biens</h2><span class="hint">Simulation en cours et simulations cochées, chacune dans son régime le plus rentable</span></div>
-        <div class="scroll"><table id="biens"></table></div>
+        <div class="scroll long"><table id="biens"></table></div>
       </section>
 
       <section class="panel" aria-labelledby="t-synth">
         <div class="panel-head"><h2 id="t-synth">Synthèse sur la durée de détention</h2><span class="hint" id="synthHint"></span></div>
         <div class="kpis" id="kpis"></div>
         <ul class="alerts" id="alerts"></ul>
-        <div class="scroll"><table id="synth"></table></div>
+        <div class="scroll long"><table id="synth"></table></div>
         <div class="explication" id="explication" hidden></div>
       </section>
 
@@ -465,7 +492,7 @@ td.sel, tr.sel td { box-shadow: inset 0 0 0 2px var(--accent) !important; }
       <section class="panel" aria-labelledby="t-detail">
         <div class="panel-head"><h2 id="t-detail">Détail annuel</h2><span class="hint">Cliquez sur une ligne pour voir le calcul de l'impôt.</span></div>
         <div class="tabs" role="tablist" id="tabs"></div>
-        <div class="scroll"><table id="detail"></table></div>
+        <div class="scroll long"><table id="detail"></table></div>
         <div class="explication" id="explicationDetail" hidden></div>
       </section>
 
@@ -1045,6 +1072,7 @@ td.sel, tr.sel td { box-shadow: inset 0 0 0 2px var(--accent) !important; }
       else if (el.type === "checkbox") el.checked = v === true || v === "true"; else el.value = v;
     });
     syncPret();
+    if (!lieu.value && document.getElementById("codePostal").value) lieu.value = document.getElementById("codePostal").value;
     majCodePostal();
   }
 
@@ -1303,8 +1331,8 @@ td.sel, tr.sel td { box-shadow: inset 0 0 0 2px var(--accent) !important; }
     estimationCourante = null;
     actions.hidden = true;
     const msg = t => { corps.innerHTML = `<p class="hint">${t}</p>`; document.getElementById("marcheAlertes").innerHTML = ""; };
-    if (marche.statut === "vide") return msg("Saisissez un code postal et une surface pour situer le projet sur son marché : prix des ventes récentes, loyers d'annonce, évolution des prix et frais de notaire.");
-    if (marche.statut === "invalide") return msg("Le code postal doit compter 5 chiffres.");
+    if (marche.statut === "vide") return msg("Saisissez une commune ou un code postal et une surface pour situer le projet sur son marché : prix des ventes récentes, loyers d'annonce, évolution des prix et frais de notaire.");
+    if (marche.statut === "invalide") return msg("Choisissez une commune dans la liste ou saisissez un code postal à 5 chiffres.");
     if (marche.statut === "chargement") return msg("Chargement des données du département…");
     if (marche.statut === "indisponible") return msg("Les données de marché n'ont pas pu être chargées. Elles sont publiées avec l'application : ouvrez-la depuis son adresse web plutôt qu'en fichier local, ou réessayez plus tard.");
     if (marche.statut === "introuvable") return msg(/^(57|67|68)/.test(marche.cp)
@@ -1350,8 +1378,126 @@ td.sel, tr.sel td { box-shadow: inset 0 0 0 2px var(--accent) !important; }
   document.getElementById("btnNotaire").addEventListener("click", () => { const p = readParams(); appliquer({ notairePct: Math.round(Moteur.fraisNotaire(p.prix, p.type, p.tauxDmto / 100).taux * 10000) / 100 }); });
   document.getElementById("btnSurface").addEventListener("click", () => { const d = Moteur.defautsSurface(readParams().surface); appliquer({ mobilier: d.mobilier, entretien: d.entretien, pno: d.pno }); });
 
-  let timerCP = null;
-  document.getElementById("codePostal").addEventListener("input", () => { clearTimeout(timerCP); timerCP = setTimeout(() => majCodePostal(), 250); });
+  // ---------- Recherche d'une commune par son nom ou son code postal ----------
+
+  const lieu = document.getElementById("lieu");
+  const listeLieux = document.getElementById("lieuSuggestions");
+  let indexCommunes = null, suggestions = [], suggestionActive = -1;
+
+  const normaliser = s => s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "")
+    .replace(/[-'’]/g, " ").replace(/\bsainte\b/g, "ste").replace(/\bsaint\b/g, "st").replace(/\s+/g, " ").trim();
+
+  async function chargerIndex() {
+    if (!indexCommunes) {
+      indexCommunes = chargerJSON("donnees/marche/communes.json")
+        .then(d => d.communes.map(([nom, code, dep, cps, ventes]) => ({ nom, code, dep, cps, ventes, cle: normaliser(nom) })))
+        .catch(e => { indexCommunes = null; throw e; });
+    }
+    return indexCommunes;
+  }
+
+  // Début du nom d'abord, puis début d'un mot, puis contenu ; les communes actives en premier
+  function chercherCommunes(liste, texte) {
+    const q = normaliser(texte);
+    if (q.length < 2) return [];
+    const res = [];
+    for (const c of liste) {
+      const rang = c.cle.startsWith(q) ? 0 : c.cle.includes(" " + q) ? 1 : c.cle.includes(q) ? 2 : -1;
+      if (rang >= 0) res.push({ c, rang });
+    }
+    res.sort((a, b) => a.rang - b.rang || b.c.ventes - a.c.ventes || a.c.nom.localeCompare(b.c.nom, "fr"));
+    return res.slice(0, 8).map(r => r.c);
+  }
+
+  function fermerSuggestions() {
+    listeLieux.hidden = true;
+    lieu.setAttribute("aria-expanded", "false");
+    lieu.removeAttribute("aria-activedescendant");
+    suggestionActive = -1;
+  }
+
+  function afficherSuggestions(message) {
+    if (message) {
+      listeLieux.innerHTML = `<li class="vide" role="presentation">${esc(message)}</li>`;
+    } else {
+      listeLieux.innerHTML = suggestions.map((c, i) => `<li role="option" id="lieu-${i}" data-i="${i}" aria-selected="${i === suggestionActive}">${esc(c.nom)} <span class="hint">${esc(c.cps[0] || "")}${c.cps.length > 1 ? " …" : ""} · ${esc(c.dep)}</span></li>`).join("");
+    }
+    listeLieux.hidden = false;
+    lieu.setAttribute("aria-expanded", "true");
+    if (suggestionActive >= 0) lieu.setAttribute("aria-activedescendant", "lieu-" + suggestionActive);
+  }
+
+  function choisirCommune(c) {
+    lieu.value = `${c.nom} (${c.cps[0] || c.dep})`;
+    document.getElementById("codePostal").value = c.cps[0] || "";
+    document.getElementById("commune").dataset.voulue = c.code;
+    fermerSuggestions();
+    marche.cp = null;
+    majCodePostal(c.code);
+  }
+
+  let timerLieu = null;
+  lieu.addEventListener("input", () => {
+    clearTimeout(timerLieu);
+    const v = lieu.value.trim();
+    if (/^\d+$/.test(v) || !v) {
+      fermerSuggestions();
+      document.getElementById("codePostal").value = v.length === 5 || !v ? v : "";
+      timerLieu = setTimeout(() => { majCodePostal(); update(); }, 250);
+      return;
+    }
+    timerLieu = setTimeout(async () => {
+      try {
+        const liste = await chargerIndex();
+        if (lieu.value.trim() !== v) return;
+        suggestions = chercherCommunes(liste, v);
+        suggestionActive = suggestions.length ? 0 : -1;
+        afficherSuggestions(suggestions.length ? null : normaliser(v).length < 2 ? "Saisissez au moins 2 lettres." : "Aucune commune trouvée.");
+      } catch (e) {
+        suggestions = [];
+        afficherSuggestions("La liste des communes n'a pas pu être chargée. Saisissez le code postal.");
+      }
+    }, 150);
+  });
+  lieu.addEventListener("keydown", e => {
+    if (listeLieux.hidden || !suggestions.length) return;
+    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+      e.preventDefault();
+      suggestionActive = (suggestionActive + (e.key === "ArrowDown" ? 1 : -1) + suggestions.length) % suggestions.length;
+      afficherSuggestions();
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      if (suggestionActive >= 0) choisirCommune(suggestions[suggestionActive]);
+    } else if (e.key === "Escape") fermerSuggestions();
+  });
+  listeLieux.addEventListener("mousedown", e => {
+    const li = e.target.closest("li[data-i]");
+    if (li) { e.preventDefault(); choisirCommune(suggestions[+li.dataset.i]); }
+  });
+  lieu.addEventListener("blur", () => setTimeout(fermerSuggestions, 100));
+  document.getElementById("commune").addEventListener("change", () => {
+    const c = marche.communes.find(x => x.code === document.getElementById("commune").value);
+    if (c) lieu.value = `${c.fiche.nom} (${marche.cp})`;
+  });
+
+  // ---------- Tableaux larges : ombre de débordement ----------
+
+  function signalerDebordements() {
+    document.querySelectorAll(".scroll").forEach(z => {
+      const reste = z.scrollWidth - z.clientWidth - z.scrollLeft;
+      z.classList.toggle("defile-x", z.scrollWidth - z.clientWidth > 2);
+      z.classList.toggle("deborde-droite", reste > 2);
+      z.classList.toggle("deborde-gauche", z.scrollLeft > 2);
+    });
+  }
+  document.querySelectorAll(".scroll").forEach(z => {
+    z.addEventListener("scroll", signalerDebordements, { passive: true });
+    if (!z.hasAttribute("tabindex")) { z.tabIndex = 0; z.setAttribute("role", "region"); z.setAttribute("aria-label", "Tableau défilant"); }
+  });
+  window.addEventListener("resize", signalerDebordements);
+  if (window.ResizeObserver) { const ro = new ResizeObserver(signalerDebordements); document.querySelectorAll(".scroll table").forEach(t => ro.observe(t)); }
+
+
 
   let last = null, lastP = null;
   function update() {
@@ -1379,6 +1525,7 @@ td.sel, tr.sel td { box-shadow: inset 0 0 0 2px var(--accent) !important; }
     renderArgent(res);
     renderBiens();
     renderResume(res);
+    requestAnimationFrame(signalerDebordements);
     renderModeInfo();
     renderDetail(res);
     try { localStorage.setItem(STORE_KEY, JSON.stringify(lireValeurs())); } catch (e) {}
@@ -1770,7 +1917,9 @@ td.sel, tr.sel td { box-shadow: inset 0 0 0 2px var(--accent) !important; }
   update();
   appliquerMode(modeInitial);
   renderSims();
+  if (!lieu.value && document.getElementById("codePostal").value) lieu.value = document.getElementById("codePostal").value;
   majCodePostal();
+  signalerDebordements();
 })();
 </script>
 </body>
