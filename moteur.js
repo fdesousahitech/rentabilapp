@@ -16,8 +16,17 @@
     { code: "nu", label: "Location nue" },
     { code: "lmnp", label: "LMNP" },
     { code: "sciir", label: "SCI à l'IR" },
-    { code: "sciis", label: "SCI à l'IS" },
-    { code: "jeanbrun", label: "Jeanbrun" }
+    { code: "sciis", label: "SCI à l'IS" }
+  ];
+
+  // Fiscalités proposées : régime de détention et option micro ou réel
+  const FISCALITES = [
+    { cle: "lmnp-micro", code: "lmnp", mode: "micro", label: "LMNP micro-BIC" },
+    { cle: "lmnp-reel", code: "lmnp", mode: "reel", label: "LMNP réel" },
+    { cle: "nu-micro", code: "nu", mode: "micro", label: "Location nue micro-foncier" },
+    { cle: "nu-reel", code: "nu", mode: "reel", label: "Location nue réel" },
+    { cle: "sciir", code: "sciir", mode: "reel", label: "SCI à l'IR" },
+    { cle: "sciis", code: "sciis", mode: "reel", label: "SCI à l'IS" }
   ];
 
   // ---------- Formatage des traces ----------
@@ -194,17 +203,6 @@
     };
   }
 
-  // ---------- Jeanbrun ----------
-
-  function jeanbrun(p) {
-    const J = REGLES.jeanbrun;
-    const eligible = p.type === "neuf" || p.travaux >= J.seuilTravauxAncien * p.prix;
-    const taux = J.taux[p.type][p.jbCat];
-    const plafond = J.plafonds[p.jbCat];
-    const base = J.quotePartAmortissable * (p.prix + p.travaux);
-    return { eligible, taux, plafond, base, annuel: Math.min(base * taux, plafond) };
-  }
-
   // ---------- TRI ----------
 
   function irr(flux) {
@@ -225,8 +223,8 @@
 
   function simuler(code, p, mode) {
     const H = p.horizon;
-    const isNu = code === "nu", isLmnp = code === "lmnp", isSciIr = code === "sciir", isSciIs = code === "sciis", isJb = code === "jeanbrun";
-    const foncier = isNu || isSciIr || isJb;
+    const isNu = code === "nu", isLmnp = code === "lmnp", isSciIr = code === "sciir", isSciIs = code === "sciis";
+    const foncier = isNu || isSciIr;
     const RF = REGLES.revenusFonciers, MN = REGLES.meubleNonProfessionnel, PS = REGLES.prelevementsSociaux;
     const couple = p.situation === "couple";
     const parts = Math.max(1, p.parts || 1);
@@ -243,10 +241,9 @@
     const nanti = p.typePret === "infine" && emprunt > 0 ? p.nanti : 0;
     const placement = t => nanti * Math.pow(1 + p.nantiRend / 100, t);
     const assurance = emprunt * p.assurPct / 100;
-    const loyerMensuel = isLmnp ? p.loyerNu * (1 + p.majMeuble / 100) : isJb ? p.loyerNu * (1 - p.decote / 100) : p.loyerNu;
+    const loyerMensuel = isLmnp ? p.loyerNu * (1 + p.majMeuble / 100) : p.loyerNu;
     const fixesSpecifiques = isLmnp ? p.comptaLmnp + p.cfe : isSciIr ? p.comptaSciIr + p.banqueSci : isSciIs ? p.comptaSciIs + p.banqueSci : 0;
     const bati = p.prix * (1 - p.terrainPct / 100);
-    const jb = jeanbrun(p);
     const etalement = Math.max(1, Math.min(3, Math.round(p.etalementTravaux || 1)));
 
     let regime = isSciIs ? "IS" : "Réel";
@@ -257,7 +254,7 @@
     const reportFoncier = creerReport(RF.dureeReportDeficit);
     const reportBIC = creerReport(MN.dureeReportDeficit);
     const reportIS = creerReport(null);
-    let reportAmort = 0, cumAmortLmnp = 0, cumDispoBT = 0, cumJb = 0, cumAmB = 0, cumAmT = 0, cumNetIS = 0;
+    let reportAmort = 0, cumAmortLmnp = 0, cumDispoBT = 0, cumAmB = 0, cumAmT = 0, cumNetIS = 0;
     const deficitsGlobaux = [];
     const mobilierLots = isLmnp ? [{ montant: p.mobilier, debut: 1 }] : [];
 
@@ -265,7 +262,7 @@
     const venteNet = valeurVente * (1 - p.fraisRevente / 100);
     const years = [];
     let isPV = 0, pvSCI = 0, vnc = 0;
-    let repriseDeficit = 0, repriseJb = 0;
+    let repriseDeficit = 0;
 
     for (let y = 1; y <= H; y++) {
       const gL = Math.pow(1 + p.irl / 100, y - 1);
@@ -295,12 +292,11 @@
           imposable = resultat;
           detail.push(`Micro-foncier : ${e(loyers)} × 70 % = ${e(resultat)} imposables`);
         } else {
-          if (isJb && cumJb < jb.base) { amort = Math.min(jb.annuel, jb.base - cumJb); cumJb += amort; }
-          const travauxDeduits = isJb ? 0 : y <= etalement ? p.travaux / etalement : 0;
+          const travauxDeduits = y <= etalement ? p.travaux / etalement : 0;
           const horsInterets = charges + assur + (y === 1 ? p.fraisBancaires : 0) + travauxDeduits + amort;
           const r = loyers - horsInterets - interets;
           resultat = r;
-          detail.push(`Résultat foncier : ${e(loyers)} − charges et assurance ${e(horsInterets - amort)}` + (amort ? ` − amortissement Jeanbrun ${e(amort)}` : "") + ` − intérêts ${e(interets)} = ${e(r)}`);
+          detail.push(`Résultat foncier : ${e(loyers)} − charges et assurance ${e(horsInterets - amort)}` + ` − intérêts ${e(interets)} = ${e(r)}`);
           if (r >= 0) {
             const u = reportFoncier.utiliser(y, r);
             imposable = r - u;
@@ -383,15 +379,10 @@
       repriseDeficit = deficitsGlobaux.filter(d => d.annee + RF.dureeMaintienLocation > H).reduce((s, d) => s + d.montant, 0);
       if (repriseDeficit > 0) reprises.push(`Déficit imputé sur le revenu global repris (location arrêtée avant la fin de la 3e année suivant l'imputation) : ${e(repriseDeficit)}`);
     }
-    if (isJb && H < REGLES.jeanbrun.dureeEngagement && cumJb > 0) {
-      repriseJb = cumJb;
-      reprises.push(`Engagement de 9 ans rompu : amortissements Jeanbrun repris ${e(repriseJb)}`);
-      notes.push("Jeanbrun : détention inférieure à l'engagement de 9 ans, les amortissements déduits sont repris l'année de la vente.");
-    }
     let impotReprise = 0;
-    if (repriseDeficit + repriseJb > 0) {
+    if (repriseDeficit > 0) {
       const base = Math.max(0, R0 + derniere.imposable - derniere.deficitGlobal);
-      impotReprise = impotRevenu(base + repriseDeficit + repriseJb, parts, couple).impot - impotRevenu(base, parts, couple).impot + repriseJb * PS.foncier;
+      impotReprise = impotRevenu(base + repriseDeficit, parts, couple).impot - impotRevenu(base, parts, couple).impot;
       reprises.push(`Impôt supplémentaire : ${e(impotReprise)}`);
     }
 
@@ -412,7 +403,6 @@
       let travauxRetenus = 0, reintegre = 0;
       if (isLmnp) travauxRetenus = p.travaux;
       if (isLmnp && regime === "Réel" && MN.reintegrationAmortissements) reintegre = Math.min(cumAmortLmnp, cumDispoBT);
-      if (isJb) { travauxRetenus = p.travaux; reintegre = p.jbReint ? cumJb : 0; }
       const r = plusValueParticuliers({ duree: H, prix: p.prix, fraisAcquisition: notaire + p.agence, travauxRetenus, amortReintegre: reintegre, prixCession: venteNet });
       pv = r.pv; impotSortie = r.impot; traceSortie = r.trace;
     }
@@ -446,12 +436,11 @@
     const tauxAlt = (p.tauxAlternatif || 0) / 100;
     const vanAlt = van(flux, tauxAlt);
 
-    if (isJb && !jb.eligible) notes.push("Jeanbrun : dans l'ancien, les travaux doivent atteindre au moins 30 % du prix d'acquisition.");
     const expireF = reportFoncier.expire() + reportBIC.expire();
     if (expireF > 0) notes.push(`${REGIMES.find(R => R.code === code).label} : ${e(expireF)} de déficits reportés expirent sans avoir été utilisés.`);
 
     const res = {
-      code, regime, notes, eligible: !isJb || jb.eligible,
+      code, regime, notes, eligible: true,
       cout, emprunt, apport, nanti, placementSortie, mensualite,
       mensualiteDiffere: loan.differe > 0 && emprunt > 0 ? loan.mensualiteDiffere + assurance / 12 : null,
       interetsTotaux: loan.interets.reduce((s, v) => s + v, 0),
@@ -459,7 +448,7 @@
       coutCredit, effortMax: -effortMax, tauxApport: apport / cout,
       fondsInvestis, multiple: (netSortie + positifs) / fondsInvestis,
       rendBrut: y1.loyers / prixRevient,
-      rendNet: (y1.loyers - y1.charges) / cout,
+      rendNet: years.reduce((s, o) => s + (o.loyers - o.charges), 0) / H / cout,
       rendNetNet: years.reduce((s, o) => s + (o.loyers - o.charges - o.impot), 0) / H / cout,
       cfMoyAvant: sumCfAvant / H / 12, cfMoyApres: sumCfApres / H / 12, cf1Apres: y1.cfApres / 12,
       impots, enrichissement: netSortie + sumCfApres - apport - nanti, tri,
@@ -478,9 +467,9 @@
         `Total : ${e(mensualite)}`
       ] : ["Pas de crédit."],
       coutCredit: [`Intérêts et assurance payés sur ${H} ans ${e(coutCredit - p.fraisBancaires - ira)} + frais bancaires ${e(p.fraisBancaires)} + indemnités ${e(ira)} = ${e(coutCredit)}`],
-      loyerMensuel: [isLmnp ? `Loyer nu ${e(p.loyerNu)} + majoration meublé ${nf2.format(p.majMeuble)} %` : isJb ? `Loyer nu ${e(p.loyerNu)} − décote ${nf2.format(p.decote)} % pour respecter le plafond` : "Loyer nu saisi", `= ${e(loyerMensuel)} par mois`],
+      loyerMensuel: [isLmnp ? `Loyer nu ${e(p.loyerNu)} + majoration meublé ${nf2.format(p.majMeuble)} %`  : "Loyer nu saisi", `= ${e(loyerMensuel)} par mois`],
       rendBrut: [`Loyers de l'année 1 ${e(y1.loyers)} / prix de revient ${e(prixRevient)} = ${pc(res.rendBrut)}`],
-      rendNet: [`(Loyers ${e(y1.loyers)} − charges ${e(y1.charges)}) / coût total ${e(cout)} = ${pc(res.rendNet)}`],
+      rendNet: [`Moyenne sur ${H} ans de (loyers − charges) / coût total ${e(cout)} = ${pc(res.rendNet)}`, `Année 1 : (${e(y1.loyers)} − ${e(y1.charges)}) / ${e(cout)} = ${pc((y1.loyers - y1.charges) / cout)}`],
       rendNetNet: [`Moyenne sur ${H} ans de (loyers − charges − impôts) / coût total = ${pc(res.rendNetNet)}`],
       cfMoyAvant: [`Somme des trésoreries avant impôt ${e(sumCfAvant)} / ${H * 12} mois = ${e(res.cfMoyAvant)}`],
       cf1Apres: [`Trésorerie après impôt de l'année 1 ${e(y1.cfApres)} / 12 = ${e(res.cf1Apres)}`].concat(y1.detail),
@@ -523,28 +512,25 @@
 
   // ---------- Comparaison des régimes ----------
 
+  // Simule les fiscalités demandées (toutes par défaut) ; un régime micro est signalé non applicable
+  // quand les loyers dépassent son plafond
   function comparer(p, options) {
     const opts = options || {};
-    const res = REGIMES.map(R => {
-      if (R.code !== "nu" && R.code !== "lmnp") return simuler(R.code, p, "reel");
-      const sel = R.code === "nu" ? p.regNu : p.regLmnp;
-      const plafond = R.code === "nu" ? REGLES.revenusFonciers.plafondMicro : REGLES.meubleNonProfessionnel.plafondMicro;
-      const nom = R.code === "nu" ? "Micro-foncier" : "Micro-BIC";
-      const reel = simuler(R.code, p, "reel");
-      const microOk = reel.years[0].loyers <= plafond;
-      if (sel === "reel" || !microOk) {
-        if (sel === "micro" && !microOk) reel.notes.push(`${nom} impossible avec ce niveau de loyers : régime réel appliqué.`);
-        reel.choixRegime = sel === "auto" && !microOk ? `${nom} impossible : loyers supérieurs à ${e(plafond)}.` : null;
-        return reel;
+    const liste = opts.fiscalites ? FISCALITES.filter(F => opts.fiscalites.includes(F.cle)) : FISCALITES;
+    const res = liste.map(F => {
+      const r = simuler(F.code, p, F.mode);
+      r.cle = F.cle; r.label = F.label;
+      if (F.mode === "micro") {
+        const plafond = F.code === "nu" ? REGLES.revenusFonciers.plafondMicro : REGLES.meubleNonProfessionnel.plafondMicro;
+        if (r.years[0].loyers > plafond) {
+          r.eligible = false;
+          r.notes.push(`${F.label} : non applicable, les loyers dépassent le plafond de ${e(plafond)} par an.`);
+        }
       }
-      const micro = simuler(R.code, p, "micro");
-      if (sel === "micro") return micro;
-      const retenu = micro.enrichissement > reel.enrichissement ? micro : reel;
-      retenu.choixRegime = `Régime le plus favorable : ${retenu.regime} (enrichissement ${e(retenu.enrichissement)} contre ${e(retenu === micro ? reel.enrichissement : micro.enrichissement)}).`;
-      return retenu;
+      return r;
     });
     if (!opts.sansComptant) {
-      const comptant = comparer(Object.assign({}, p, { apport: Infinity }), { sansComptant: true });
+      const comptant = comparer(Object.assign({}, p, { apport: Infinity }), { sansComptant: true, fiscalites: liste.map(F => F.cle) });
       res.forEach((r, i) => {
         r.triComptant = comptant[i].tri;
         r.trace.triComptant = [`Mêmes hypothèses sans crédit : apport ${e(comptant[i].apport)}, TRI ${comptant[i].tri == null ? "non calculable" : pc(comptant[i].tri)}`];
@@ -557,7 +543,7 @@
   // ---------- Aide à la décision ----------
 
   const SEUIL_SIGNIFICATIF = 0.003;
-  const labelDe = code => REGIMES.find(R => R.code === code).label;
+  const labelDe = cle => (FISCALITES.find(F => F.cle === cle) || {}).label || cle;
   const modeDe = r => r.regime === "Micro-foncier" || r.regime === "Micro-BIC" ? "micro" : "reel";
   const pts = v => (v >= 0 ? "+" : "−") + nf2.format(Math.abs(v) * 100) + " pt";
 
@@ -568,26 +554,26 @@
   // Classe les régimes et dit si l'écart est assez grand pour trancher
   function verdict(res, p) {
     const ok = res.filter(r => r.eligible && r.tri != null).sort((a, b) => b.tri - a.tri);
-    if (!ok.length) return { meilleur: null, egalite: [], lignes: ["Aucun régime n'a de TRI calculable avec ces hypothèses."] };
+    if (!ok.length) return { meilleur: null, egalite: [], titre: res.length === 1 ? `${res[0].label} : non applicable` : "Aucune fiscalité applicable", lignes: res.length === 1 && res[0].notes.length ? [res[0].notes[res[0].notes.length - 1]] : ["Aucune fiscalité applicable n'a de TRI calculable avec ces hypothèses."] };
     const m = ok[0], s = ok[1];
     const ecart = s ? m.tri - s.tri : null;
     const significatif = ecart == null || ecart >= SEUIL_SIGNIFICATIF;
-    const egalite = ok.filter(r => m.tri - r.tri < SEUIL_SIGNIFICATIF).map(r => r.code);
+    const egalite = ok.filter(r => m.tri - r.tri < SEUIL_SIGNIFICATIF).map(r => r.cle);
     const alt = (p.tauxAlternatif || 0) / 100;
     const lignes = [];
     let titre;
     if (significatif) {
-      titre = `${labelDe(m.code)} est le régime le plus rentable`;
-      lignes.push(`TRI de ${pc(m.tri)}` + (s ? `, soit ${pts(ecart)} devant ${labelDe(s.code)} (${pc(s.tri)}).` : "."));
+      titre = s ? `${labelDe(m.cle)} est la fiscalité la plus rentable` : `${labelDe(m.cle)} : TRI de ${pc(m.tri)}`;
+      if (s) lignes.push(`TRI de ${pc(m.tri)}, soit ${pts(ecart)} devant ${labelDe(s.cle)} (${pc(s.tri)}).`);
     } else {
-      titre = egalite.length > 2 ? `${egalite.map(labelDe).join(", ")} font jeu égal` : `${labelDe(m.code)} et ${labelDe(s.code)} font jeu égal`;
-      lignes.push(`Écart de ${pts(ecart)} seulement entre ${labelDe(m.code)} (${pc(m.tri)}) et ${labelDe(s.code)} (${pc(s.tri)}) : il reste dans la marge d'incertitude des hypothèses. Choisissez plutôt sur la simplicité de gestion, la souplesse à la revente et la transmission.`);
+      titre = egalite.length > 2 ? `${egalite.map(labelDe).join(", ")} font jeu égal` : `${labelDe(m.cle)} et ${labelDe(s.cle)} font jeu égal`;
+      lignes.push(`Écart de ${pts(ecart)} seulement entre ${labelDe(m.cle)} (${pc(m.tri)}) et ${labelDe(s.cle)} (${pc(s.tri)}) : il reste dans la marge d'incertitude des hypothèses. Choisissez plutôt sur la simplicité de gestion, la souplesse à la revente et la transmission.`);
     }
     const battu = m.tri < alt;
-    if (battu) lignes.push(`Aucun régime ne dépasse le placement alternatif à ${pc(alt)} : à ces conditions, cet investissement rapporte moins que ce placement.`);
-    else lignes.push(`Le meilleur régime dépasse le placement alternatif à ${pc(alt)} de ${pts(m.tri - alt)} ; valeur actuelle nette à ce taux : ${e(m.van)}.`);
+    if (battu) lignes.push(s ? `Aucune fiscalité ne dépasse le placement alternatif à ${pc(alt)} : à ces conditions, cet investissement rapporte moins que ce placement.` : `TRI inférieur au placement alternatif à ${pc(alt)} : à ces conditions, cet investissement rapporte moins que ce placement.`);
+    else lignes.push(`${s ? "La meilleure fiscalité dépasse" : "Le TRI dépasse"} le placement alternatif à ${pc(alt)} de ${pts(m.tri - alt)} ; valeur actuelle nette à ce taux : ${e(m.van)}.`);
     if (m.tauxEffort && !m.tauxEffort.conforme) lignes.push(`Financement au-delà des règles HCSF (endettement ${pc(m.tauxEffort.taux)}) : l'accord de la banque n'est pas acquis.`);
-    return { meilleur: m.code, second: s ? s.code : null, ecart, significatif, egalite, battuParPlacement: battu, titre, lignes };
+    return { meilleur: m.cle, second: s ? s.cle : null, ecart, significatif, egalite, battuParPlacement: battu, titre, lignes };
   }
 
   // Pistes chiffrées pour améliorer le montage
@@ -595,12 +581,12 @@
     const out = [];
     const etal = Math.round(p.etalementTravaux || 1);
     if (p.travaux > 0 && etal < 2) {
-      ["nu", "sciir"].forEach(code => {
-        const r = res.find(o => o.code === code);
-        if (!r || r.regime !== "Réel") return;
-        const alt = simuler(code, Object.assign({}, p, { etalementTravaux: 2 }), "reel");
+      ["nu-reel", "sciir"].forEach(cle => {
+        const r = res.find(o => o.cle === cle);
+        if (!r) return;
+        const alt = simuler(r.code, Object.assign({}, p, { etalementTravaux: 2 }), "reel");
         const gain = alt.enrichissement - r.enrichissement;
-        if (gain > 500) out.push({ code, gain, message: `${labelDe(code)} : répartir les travaux sur 2 années civiles (factures payées sur 2 ans) ferait gagner ${e(gain)} d'enrichissement, car le déficit imputable sur le revenu global est plafonné à 10 700 € par an.` });
+        if (gain > 500) out.push({ cle, gain, message: `${labelDe(cle)} : répartir les travaux sur 2 années civiles (factures payées sur 2 ans) ferait gagner ${e(gain)} d'enrichissement, car le déficit imputable sur le revenu global est plafonné à 10 700 € par an.` });
       });
     }
     return out;
@@ -672,20 +658,20 @@
   }
 
   // TRI de chaque régime selon la durée de détention
-  function horizons(p, max) {
+  function horizons(p, max, fiscalites) {
     const n = max || 30;
     const points = [];
     for (let H = 1; H <= n; H++) {
-      const res = comparer(Object.assign({}, p, { horizon: H }), { sansComptant: true });
+      const res = comparer(Object.assign({}, p, { horizon: H }), { sansComptant: true, fiscalites });
       const tris = {};
-      res.forEach(r => { tris[r.code] = r.eligible ? r.tri : null; });
+      res.forEach(r => { tris[r.cle] = r.eligible ? r.tri : null; });
       points.push({ H, tris });
     }
     const optimum = {};
-    REGIMES.forEach(R => {
+    Object.keys(points[0].tris).forEach(cle => {
       let best = null;
-      points.forEach(pt => { const t = pt.tris[R.code]; if (t != null && (best == null || t > best.tri + 1e-9)) best = { H: pt.H, tri: t }; });
-      optimum[R.code] = best;
+      points.forEach(pt => { const t = pt.tris[cle]; if (t != null && (best == null || t > best.tri + 1e-9)) best = { H: pt.H, tri: t }; });
+      optimum[cle] = best;
     });
     return { points, optimum };
   }
@@ -704,10 +690,10 @@
     return q;
   }
 
-  function scenarios(p) {
+  function scenarios(p, fiscalites) {
     return Object.keys(SCENARIOS).map(nom => {
       const q = appliquerScenario(p, nom);
-      return { nom, label: SCENARIOS[nom].label, params: q, res: comparer(q, { sansComptant: true }) };
+      return { nom, label: SCENARIOS[nom].label, params: q, res: comparer(q, { sansComptant: true, fiscalites }) };
     });
   }
 
@@ -731,13 +717,13 @@
   }
 
   // Résumé d'une simulation complète, pour comparer plusieurs biens entre eux
-  function syntheseBien(p) {
-    const res = comparer(p, { sansComptant: true });
+  function syntheseBien(p, fiscalites) {
+    const res = comparer(p, { sansComptant: true, fiscalites });
     const v = verdict(res, p);
-    const m = res.find(r => r.code === v.meilleur);
+    const m = res.find(r => r.cle === v.meilleur);
     if (!m) return { meilleur: null, verdict: v };
     return {
-      meilleur: m.code, label: labelDe(m.code), regime: m.regime, verdict: v,
+      meilleur: m.cle, label: m.label, regime: m.regime, verdict: v,
       tri: m.tri, enrichissement: m.enrichissement, cfMoyApres: m.cfMoyApres, effortMax: m.effortMax,
       tauxEffort: m.tauxEffort, van: m.van, cout: m.cout, emprunt: m.emprunt, mensualite: m.mensualite
     };
@@ -880,7 +866,6 @@
     }
     if (p.tauxAlternatif < 0 || p.tauxAlternatif > 10) alerte("tauxAlternatif", "Rendement alternatif hors de la plage habituelle (0 à 10 % net).");
     if (p.valo > 4) alerte("valo", "Valorisation annuelle supérieure à 4 % : hypothèse optimiste sur 10 ans ou plus.");
-    if (p.horizon < REGLES.jeanbrun.dureeEngagement) alerte("horizon", "Détention inférieure à 9 ans : l'engagement Jeanbrun n'est pas tenu.");
     if (p.typePret === "infine" && p.nanti <= 0) alerte("nanti", "Prêt in fine sans placement nanti : la banque en exige presque toujours un.");
     if (p.codePostal && !/^\d{5}$/.test(p.codePostal)) err("codePostal", "Le code postal doit compter 5 chiffres.");
     if (p.surface > 0 && p.prix > 0) {
@@ -892,8 +877,8 @@
   }
 
   return {
-    REGLES, REGIMES, pret, impotRevenu, tmi, impotSocietes, abattementIR, abattementPS, surtaxePV,
-    plusValueParticuliers, creerReport, jeanbrun, irr, van, simuler, comparer, tauxEffort, valider,
+    REGLES, REGIMES, FISCALITES, pret, impotRevenu, tmi, impotSocietes, abattementIR, abattementPS, surtaxePV,
+    plusValueParticuliers, creerReport, irr, van, simuler, comparer, tauxEffort, valider,
     SEUIL_SIGNIFICATIF, VARIABLES, SCENARIOS, verdict, suggestions, sensibilite, seuils, horizons, scenarios,
     decomposition, syntheseBien, fraisNotaire, defautsSurface, estimationMarche, alertesMarche,
     quantileHistogramme, estimationQuartier

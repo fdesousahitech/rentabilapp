@@ -17,8 +17,7 @@ const EXEMPLE = {
   copro: 800, tf: 1100, pno: 180, entretien: 500, gestionPct: 7, gliPct: 3, inflation: 2,
   comptaLmnp: 600, cfe: 300, renouvMobilier: true, creationSci: 1500, banqueSci: 200, comptaSciIr: 500, comptaSciIs: 1500,
   situation: "couple", parts: 2, revenuImposable: 60000, revenusMensuels: 5000, creditsExistants: 0,
-  regNu: "auto", regLmnp: "auto", durBati: 30, durTrav: 15, durMob: 7,
-  jbCat: "inter", decote: 15, jbReint: true,
+  durBati: 30, durTrav: 15, durMob: 7,
   horizon: 15, valo: 1.5, fraisRevente: 4, sciDistrib: true, etalementTravaux: 1, tauxAlternatif: 3
 };
 const avec = changements => Object.assign({}, EXEMPLE, changements);
@@ -212,20 +211,6 @@ test("déficits perdus : signalés quand ils expirent", () => {
   assert.ok(r.notes.some(n => n.includes("expirent")));
 });
 
-test("Jeanbrun : reprise des amortissements si l'engagement de 9 ans est rompu", () => {
-  const court = M.simuler("jeanbrun", avec({ horizon: 8 }), "reel");
-  assert.ok(court.trace.impotSortie.some(l => l.includes("Engagement de 9 ans rompu")));
-  const long = M.simuler("jeanbrun", avec({ horizon: 9 }), "reel");
-  assert.ok(!long.trace.impotSortie.some(l => l.includes("Engagement")));
-});
-
-test("Jeanbrun : éligibilité dans l'ancien et plafond annuel", () => {
-  assert.equal(M.jeanbrun(avec({ travaux: 50000 })).eligible, false);
-  const j = M.jeanbrun(avec({ type: "neuf", travaux: 0, prix: 400000, jbCat: "inter" }));
-  // 80 % × 400 000 × 3,5 % = 11 200 € plafonné à 8 000 €
-  proche(j.annuel, 8000);
-});
-
 test("LMNP : renouvellement du mobilier", () => {
   const avecRenouv = M.simuler("lmnp", avec({ renouvMobilier: true }), "reel");
   const sans = M.simuler("lmnp", avec({ renouvMobilier: false }), "reel");
@@ -270,15 +255,15 @@ test("VAN : nulle au taux du TRI", () => {
 });
 
 test("verdict : écart significatif ou non", () => {
-  const faux = (code, tri) => ({ code, tri, eligible: true, van: 0, tauxEffort: null });
-  const net = M.verdict([faux("nu", 0.040), faux("lmnp", 0.030)], { tauxAlternatif: 3 });
+  const faux = (cle, tri) => ({ cle, tri, eligible: true, van: 0, tauxEffort: null });
+  const net = M.verdict([faux("nu-reel", 0.040), faux("lmnp-reel", 0.030)], { tauxAlternatif: 3 });
   assert.equal(net.significatif, true);
-  assert.equal(net.meilleur, "nu");
-  const serre = M.verdict([faux("nu", 0.030), faux("lmnp", 0.028), faux("sciis", 0.010)], { tauxAlternatif: 3 });
+  assert.equal(net.meilleur, "nu-reel");
+  const serre = M.verdict([faux("nu-reel", 0.030), faux("lmnp-reel", 0.028), faux("sciis", 0.010)], { tauxAlternatif: 3 });
   assert.equal(serre.significatif, false);
-  assert.deepEqual(serre.egalite, ["nu", "lmnp"]);
+  assert.deepEqual(serre.egalite, ["nu-reel", "lmnp-reel"]);
   assert.equal(serre.battuParPlacement, false);
-  assert.equal(M.verdict([faux("nu", 0.02)], { tauxAlternatif: 3 }).battuParPlacement, true);
+  assert.equal(M.verdict([faux("nu-reel", 0.02)], { tauxAlternatif: 3 }).battuParPlacement, true);
 });
 
 test("étalement des travaux : moins de déficits perdus en location nue", () => {
@@ -286,7 +271,7 @@ test("étalement des travaux : moins de déficits perdus en location nue", () =>
   const deux = M.simuler("nu", avec({ etalementTravaux: 2 }), "reel");
   assert.ok(deux.years[1].deficitGlobal > 0, "déficit imputé la 2e année");
   assert.ok(deux.enrichissement > un.enrichissement);
-  assert.ok(M.suggestions(EXEMPLE, M.comparer(EXEMPLE)).some(s => s.code === "nu"));
+  assert.ok(M.suggestions(EXEMPLE, M.comparer(EXEMPLE)).some(s => s.cle === "nu-reel"));
   assert.equal(M.suggestions(avec({ etalementTravaux: 2 }), M.comparer(avec({ etalementTravaux: 2 }))).length, 0);
 });
 
@@ -313,18 +298,17 @@ test("seuils : les valeurs trouvées atteignent la cible", () => {
 test("durée de détention : TRI par horizon identique à une simulation directe", () => {
   const h = M.horizons(EXEMPLE, 12);
   assert.equal(h.points.length, 12);
-  const direct = M.comparer(avec({ horizon: 10 }), { sansComptant: true }).find(r => r.code === "lmnp").tri;
-  proche(h.points[9].tris.lmnp, direct, 1e-12);
-  const opt = h.optimum.lmnp;
-  h.points.forEach(pt => assert.ok(pt.tris.lmnp == null || pt.tris.lmnp <= opt.tri + 1e-12));
+  const direct = M.comparer(avec({ horizon: 10 }), { sansComptant: true }).find(r => r.cle === "lmnp-reel").tri;
+  proche(h.points[9].tris["lmnp-reel"], direct, 1e-12);
+  const opt = h.optimum["lmnp-reel"];
+  h.points.forEach(pt => assert.ok(pt.tris["lmnp-reel"] == null || pt.tris["lmnp-reel"] <= opt.tri + 1e-12));
 });
 
 test("scénarios : prudent < central < optimiste", () => {
   const sc = M.scenarios(EXEMPLE);
   assert.deepEqual(sc.map(s => s.nom), ["prudent", "central", "optimiste"]);
-  M.REGIMES.forEach((R, i) => {
-    if (R.code === "jeanbrun") return;
-    assert.ok(sc[0].res[i].tri < sc[1].res[i].tri && sc[1].res[i].tri < sc[2].res[i].tri, R.code);
+  M.FISCALITES.forEach((F, i) => {
+    assert.ok(sc[0].res[i].tri < sc[1].res[i].tri && sc[1].res[i].tri < sc[2].res[i].tri, F.cle);
   });
   proche(sc[1].res[0].tri, M.comparer(EXEMPLE)[0].tri, 1e-12);
 });
@@ -350,7 +334,7 @@ test("synthèse d'un bien : retient le régime au meilleur TRI", () => {
   const s = M.syntheseBien(EXEMPLE);
   const res = M.comparer(EXEMPLE, { sansComptant: true }).filter(r => r.eligible);
   const best = res.reduce((a, b) => b.tri > a.tri ? b : a);
-  assert.equal(s.meilleur, best.code);
+  assert.equal(s.meilleur, best.cle);
   proche(s.tri, best.tri, 1e-12);
   assert.ok(s.verdict.titre);
 });
@@ -440,4 +424,36 @@ test("prix du quartier : élargissement quand les ventes sont rares", () => {
   const proche = M.estimationQuartier(q, lat, lon, "appartement");
   assert.equal(proche.n, 25);
   assert.ok(proche.med > 3700 && proche.med < 4300);
+});
+
+// ---------- Choix de la fiscalité ----------
+
+test("fiscalités : six options, comparaison complète ou ciblée", () => {
+  assert.deepEqual(M.FISCALITES.map(F => F.cle), ["lmnp-micro", "lmnp-reel", "nu-micro", "nu-reel", "sciir", "sciis"]);
+  const toutes = M.comparer(EXEMPLE);
+  assert.equal(toutes.length, 6);
+  const une = M.comparer(EXEMPLE, { fiscalites: ["lmnp-micro"] });
+  assert.equal(une.length, 1);
+  assert.equal(une[0].regime, "Micro-BIC");
+  proche(une[0].tri, toutes[0].tri, 1e-12);
+  proche(une[0].triComptant, toutes[0].triComptant, 1e-12);
+  const nuMicro = toutes.find(r => r.cle === "nu-micro");
+  assert.equal(nuMicro.regime, "Micro-foncier");
+  proche(nuMicro.years[0].imposable, nuMicro.years[0].loyers * 0.7, 0.01);
+});
+
+test("fiscalités : micro non applicable au-delà du plafond de loyers", () => {
+  const res = M.comparer(avec({ loyerNu: 1500, prix: 300000 }), { sansComptant: true });   // 1 500 × 11,5 = 17 250 € > 15 000 €
+  assert.equal(res.find(r => r.cle === "nu-micro").eligible, false);
+  assert.ok(res.find(r => r.cle === "nu-micro").notes.some(n => n.includes("non applicable")));
+  assert.equal(res.find(r => r.cle === "lmnp-micro").eligible, true);                  // plafond micro-BIC 77 700 €
+  const v = M.verdict(res, avec({}));
+  assert.notEqual(v.meilleur, "nu-micro");
+});
+
+test("verdict : fiscalité unique", () => {
+  const res = M.comparer(EXEMPLE, { fiscalites: ["sciis"] });
+  const v = M.verdict(res, EXEMPLE);
+  assert.equal(v.meilleur, "sciis");
+  assert.ok(v.titre.startsWith("SCI à l'IS"));
 });

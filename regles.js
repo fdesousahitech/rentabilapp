@@ -109,18 +109,6 @@
       ]
     },
 
-    jeanbrun: {
-      statut: "a_verifier",
-      source: "LF 2026, art. 31 CGI ; fiche FPI du 21 février 2026. Doctrine administrative non publiée.",
-      quotePartAmortissable: 0.80,
-      seuilTravauxAncien: 0.30,
-      dureeEngagement: 9,
-      taux: {
-        neuf: { inter: 0.035, social: 0.045, tres: 0.055 },
-        ancien: { inter: 0.030, social: 0.035, tres: 0.040 }
-      },
-      plafonds: { inter: 8000, social: 10000, tres: 12000 }
-    },
 
     fraisNotaire: {
       statut: "a_verifier",
