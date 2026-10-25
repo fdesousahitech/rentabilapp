@@ -202,7 +202,8 @@ async function verifierGeocodage() {
     const f = d.features && d.features[0];
     log(`Géocodage : HTTP ${res.status}, CORS « ${cors} », ${d.features ? d.features.length : 0} résultat(s)`);
     if (f) log(`  propriétés : ${JSON.stringify(f.properties)} ; coordonnées : ${JSON.stringify(f.geometry && f.geometry.coordinates)}`);
-    return { statut: res.status, cors, proprietes: f ? Object.keys(f.properties) : [] };
+    const exemple = f ? { label: f.properties.label, postcode: f.properties.postcode, citycode: f.properties.citycode, type: f.properties.type } : null;
+    return { statut: res.status, cors, proprietes: f ? Object.keys(f.properties) : [], exemple };
   } catch (e) {
     log(`Géocodage : échec du contrôle (${e.message})`);
     return { erreur: e.message };
