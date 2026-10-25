@@ -1,0 +1,11 @@
+{
+  "name": "comparateur-fiscal-locatif",
+  "private": true,
+  "description": "Comparateur de rentabilité locative : location nue, LMNP, SCI IR, SCI IS, Jeanbrun",
+  "scripts": {
+    "test": "node --test tests/*.test.js"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

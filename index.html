@@ -21,6 +21,7 @@
   --good: #1d7448;
   --good-soft: #e1f2e8;
   --bad: #b3261e;
+  --bad-soft: #fbe4e2;
   --warn: #8a5a00;
   --warn-soft: #fbf0d9;
   --s-nu: #1d4e89;
@@ -37,7 +38,7 @@
   :root:not([data-theme="light"]) {
     --bg: #0f151c; --surface: #17202a; --fg: #e5eaf0; --muted: #93a0b0; --line: #2a3644;
     --accent: #84b3ea; --accent-soft: #1b2b40; --good: #62c690; --good-soft: #15302a;
-    --bad: #f08a80; --warn: #e2b450; --warn-soft: #33290f;
+    --bad: #f08a80; --bad-soft: #3a1d1b; --warn: #e2b450; --warn-soft: #33290f;
     --s-nu: #84b3ea; --s-lmnp: #f0935a; --s-sciir: #b79be0; --s-sciis: #5cc9b9; --s-jeanbrun: #ec7fb2;
     color-scheme: dark;
   }
@@ -45,7 +46,7 @@
 :root[data-theme="dark"] {
   --bg: #0f151c; --surface: #17202a; --fg: #e5eaf0; --muted: #93a0b0; --line: #2a3644;
   --accent: #84b3ea; --accent-soft: #1b2b40; --good: #62c690; --good-soft: #15302a;
-  --bad: #f08a80; --warn: #e2b450; --warn-soft: #33290f;
+  --bad: #f08a80; --bad-soft: #3a1d1b; --warn: #e2b450; --warn-soft: #33290f;
   --s-nu: #84b3ea; --s-lmnp: #f0935a; --s-sciir: #b79be0; --s-sciis: #5cc9b9; --s-jeanbrun: #ec7fb2;
   color-scheme: dark;
 }
@@ -131,6 +132,23 @@ tr.sep td { border-bottom: 0; padding-top: 14px; font-family: var(--font-body); 
 
 .alerts { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
 .alerts li { background: var(--warn-soft); color: var(--warn); padding: 8px 12px; border-radius: 6px; font-size: 13px; }
+.alerts li.err { background: var(--bad-soft); color: var(--bad); font-weight: 500; }
+.field .msg { grid-column: 1 / -1; margin: -2px 0 0; font-size: 12px; }
+.field.erreur .ctrl { border-color: var(--bad); }
+.field.erreur .msg { color: var(--bad); }
+.field.alerte .ctrl { border-color: var(--warn); }
+.field.alerte .msg { color: var(--warn); }
+.hint.ok { color: var(--good); }
+.hint.ko { color: var(--bad); }
+td.clic, tr.clic { cursor: pointer; }
+td.clic:hover, td.clic:focus-visible, tr.clic:hover td, tr.clic:focus-visible td { box-shadow: inset 0 -2px 0 var(--accent); outline: none; }
+td.sel, tr.sel td { box-shadow: inset 0 0 0 2px var(--accent) !important; }
+.explication { background: var(--accent-soft); border-radius: 6px; padding: 12px 14px; display: grid; gap: 8px; font-size: 13px; }
+.explication-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.explication ul { margin: 0; padding-left: 18px; display: grid; gap: 4px; }
+.explication .fermer { padding: 4px 10px; font-size: 12px; }
+.results.perime .panel { opacity: 0.55; }
+.sources { margin: 0; padding: 0; list-style: none; display: grid; gap: 6px; }
 
 .tabs { display: flex; gap: 6px; flex-wrap: wrap; }
 .tabs button[aria-selected="true"] { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
@@ -153,6 +171,7 @@ tr.sep td { border-bottom: 0; padding-top: 14px; font-family: var(--font-body); 
     <div class="titles">
     <h1>Comparateur fiscal locatif</h1>
     <p class="lede">Un même bien, cinq façons de le détenir : location nue, LMNP, SCI à l'IR, SCI à l'IS et dispositif Jeanbrun. Tous les coûts sont pris en compte, de l'acquisition à la revente, y compris la fiscalité de sortie. Les valeurs ci-dessous sont un exemple à remplacer par les vôtres.</p>
+    <p class="hint" id="reglesVersion"></p>
     </div>
     <div class="export">
       <button type="button" class="primary" id="exportPdf">Exporter le rapport PDF</button>
@@ -190,6 +209,10 @@ tr.sep td { border-bottom: 0; padding-top: 14px; font-family: var(--font-body); 
           <div class="field"><label for="fraisBancaires">Frais de dossier et garantie</label><div class="ctrl"><input id="fraisBancaires" type="number" step="100" value="2500"><span class="u">€</span></div></div>
           <div class="field check"><label for="ira">Indemnités de remboursement anticipé à la revente<small>3 % du capital restant dû, plafonnées à 6 mois d'intérêts</small></label><input id="ira" type="checkbox" checked></div>
           <p class="hint" id="finInfo"></p>
+          <h3>Capacité d'emprunt</h3>
+          <div class="field"><label for="revenusMensuels">Revenus nets du foyer<small>avant impôt, hors projet</small></label><div class="ctrl"><input id="revenusMensuels" type="number" step="100" min="0" value="5000"><span class="u">€/mois</span></div></div>
+          <div class="field"><label for="creditsExistants">Crédits en cours</label><div class="ctrl"><input id="creditsExistants" type="number" step="50" min="0" value="0"><span class="u">€/mois</span></div></div>
+          <p class="hint" id="hcsfInfo"></p>
         </div>
       </details>
 
@@ -216,6 +239,7 @@ tr.sep td { border-bottom: 0; padding-top: 14px; font-family: var(--font-body); 
           <h3>LMNP</h3>
           <div class="field"><label for="comptaLmnp">Expert-comptable</label><div class="ctrl"><input id="comptaLmnp" type="number" step="50" value="600"><span class="u">€</span></div></div>
           <div class="field"><label for="cfe">CFE</label><div class="ctrl"><input id="cfe" type="number" step="50" value="300"><span class="u">€</span></div></div>
+          <div class="field check"><label for="renouvMobilier">Renouveler le mobilier<small>à la fin de chaque durée d'amortissement</small></label><input id="renouvMobilier" type="checkbox" checked></div>
           <h3>SCI</h3>
           <div class="field"><label for="creationSci">Création (statuts, annonce)</label><div class="ctrl"><input id="creationSci" type="number" step="100" value="1500"><span class="u">€</span></div></div>
           <div class="field"><label for="banqueSci">Compte bancaire</label><div class="ctrl"><input id="banqueSci" type="number" step="10" value="200"><span class="u">€</span></div></div>
@@ -227,10 +251,10 @@ tr.sep td { border-bottom: 0; padding-top: 14px; font-family: var(--font-body); 
       <details class="group" open>
         <summary>Fiscalité</summary>
         <div class="fields">
-          <div class="field"><label for="tmi">Tranche marginale (TMI)</label><div class="ctrl"><select id="tmi"><option value="0">0 %</option><option value="11">11 %</option><option value="30" selected>30 %</option><option value="41">41 %</option><option value="45">45 %</option></select></div></div>
-          <div class="field"><label for="psFoncier">Prélèvements sociaux revenus fonciers</label><div class="ctrl"><input id="psFoncier" type="number" step="0.1" value="17.2"><span class="u">%</span></div></div>
-          <div class="field"><label for="psLmnp">Prélèvements sociaux BIC LMNP</label><div class="ctrl"><input id="psLmnp" type="number" step="0.1" value="18.6"><span class="u">%</span></div></div>
-          <div class="field"><label for="pfu">Flat tax sur dividendes</label><div class="ctrl"><input id="pfu" type="number" step="0.1" value="31.4"><span class="u">%</span></div></div>
+          <div class="field"><label for="situation">Situation du foyer</label><div class="ctrl"><select id="situation"><option value="couple">Couple marié ou pacsé</option><option value="seul">Personne seule</option></select></div></div>
+          <div class="field"><label for="parts">Nombre de parts</label><div class="ctrl"><input id="parts" type="number" step="0.5" min="1" value="2"><span class="u">parts</span></div></div>
+          <div class="field"><label for="revenuImposable">Revenu net imposable du foyer<small>hors projet, après abattement de 10 %</small></label><div class="ctrl"><input id="revenuImposable" type="number" step="1000" min="0" value="60000"><span class="u">€/an</span></div></div>
+          <p class="hint" id="irInfo"></p>
           <div class="field"><label for="regNu">Régime location nue</label><div class="ctrl"><select id="regNu"><option value="auto">Le plus favorable</option><option value="micro">Micro-foncier</option><option value="reel">Réel</option></select></div></div>
           <div class="field"><label for="regLmnp">Régime LMNP</label><div class="ctrl"><select id="regLmnp"><option value="auto">Le plus favorable</option><option value="micro">Micro-BIC</option><option value="reel">Réel</option></select></div></div>
           <div class="field"><label for="durBati">Amortissement du bâti</label><div class="ctrl"><input id="durBati" type="number" step="1" value="30"><span class="u">ans</span></div></div>
@@ -262,12 +286,13 @@ tr.sep td { border-bottom: 0; padding-top: 14px; font-family: var(--font-body); 
       <div class="btnrow"><button type="button" id="reset">Revenir à l'exemple</button></div>
     </form>
 
-    <div class="results">
+    <div class="results" id="resultats">
       <section class="panel" aria-labelledby="t-synth">
         <div class="panel-head"><h2 id="t-synth">Synthèse sur la durée de détention</h2><span class="hint" id="synthHint"></span></div>
         <div class="kpis" id="kpis"></div>
         <ul class="alerts" id="alerts"></ul>
         <div class="scroll"><table id="synth"></table></div>
+        <div class="explication" id="explication" hidden></div>
       </section>
 
       <section class="panel" aria-labelledby="t-sensi">
@@ -282,49 +307,42 @@ tr.sep td { border-bottom: 0; padding-top: 14px; font-family: var(--font-body); 
       </section>
 
       <section class="panel" aria-labelledby="t-detail">
-        <div class="panel-head"><h2 id="t-detail">Détail annuel</h2></div>
+        <div class="panel-head"><h2 id="t-detail">Détail annuel</h2><span class="hint">Cliquez sur une ligne pour voir le calcul de l'impôt.</span></div>
         <div class="tabs" role="tablist" id="tabs"></div>
         <div class="scroll"><table id="detail"></table></div>
+        <div class="explication" id="explicationDetail" hidden></div>
       </section>
 
       <section class="panel" aria-labelledby="t-notes">
         <h2 id="t-notes">Règles appliquées et limites</h2>
         <div class="notes">
-          <p><strong>Location nue et SCI à l'IR.</strong> Micro-foncier avec abattement de 30 % si les loyers ne dépassent pas 15 000 €. Au réel, les charges, intérêts, assurance, frais de dossier et travaux d'entretien ou d'amélioration sont déductibles. Le déficit hors intérêts s'impute sur le revenu global dans la limite de 10 700 € (économie au taux de la TMI) ; le reste est reporté sur les revenus fonciers suivants. La SCI à l'IR est toujours au réel.</p>
-          <p><strong>LMNP.</strong> Micro-BIC avec abattement de 50 % jusqu'à 77 700 € de recettes. Au réel, frais d'acquisition déduits la première année, amortissement du bâti, des travaux et du mobilier. L'amortissement ne peut pas créer de déficit : l'excédent est reporté sans limite de durée. Depuis la loi de finances 2025, les amortissements du bâti et des travaux déduits sont réintégrés dans le calcul de la plus-value. Au-delà de 23 000 € de recettes, le statut LMP peut s'appliquer : il n'est pas simulé.</p>
-          <p><strong>SCI à l'IS.</strong> Toutes les charges, les frais d'acquisition et les amortissements sont déductibles ; les déficits sont reportables sans limite. IS à 15 % jusqu'à 42 500 € de bénéfice puis 25 %. La plus-value de cession est calculée sur la valeur nette comptable. Les flux annuels sont supposés transiter par le compte courant d'associé ; à la sortie, les bénéfices accumulés sont distribués et soumis à la flat tax.</p>
-          <p><strong>Jeanbrun (article 31 du CGI, loi de finances 2026).</strong> Location nue au réel, en résidence principale, dans un immeuble collectif, logement acquis entre le 21 février 2026 et le 31 décembre 2028, avec engagement de location de 9 ans. Amortissement annuel sur 80 % de la valeur (prix + travaux) : neuf 3,5 / 4,5 / 5,5 %, ancien avec travaux d'au moins 30 % du prix 3 / 3,5 / 4 %, plafonné à 8 000 / 10 000 / 12 000 € par an selon le niveau de loyer. Le déficit s'impute sur le revenu global dans la limite de 10 700 €.</p>
-          <p><strong>Financement.</strong> Le crédit couvre le coût total de l'opération diminué de l'apport, avec des mensualités constantes et une assurance calculée sur le capital initial. La trésorerie déduit chaque année les intérêts, le capital remboursé et l'assurance. Les intérêts, l'assurance et les frais de dossier sont déductibles au réel et à l'IS. À la revente, le capital restant dû est soldé, avec les indemnités de remboursement anticipé si l'option est cochée. Le TRI porte sur les fonds personnels : apport à l'an 0, efforts d'épargne ou excédents annuels, puis produit net de revente. En prêt in fine, seuls les intérêts et l'assurance sont payés chaque mois et le capital est remboursé en une fois au terme ou à la revente ; le placement nanti éventuel est versé à l'an 0 et débloqué au terme pour rembourser le capital, ou récupéré à la revente. En différé partiel, seuls les intérêts sont payés ; en différé total, ils s'ajoutent au capital, puis les mensualités sont calculées sur la durée restante. Les intérêts sont déduits au fur et à mesure qu'ils courent, y compris quand ils sont capitalisés : c'est exact en BIC et à l'IS, mais en revenus fonciers les intérêts ne sont déductibles qu'une fois payés. Le TRI en achat comptant reprend les mêmes hypothèses sans crédit ; l'écart entre les deux mesure l'effet de levier.</p>
-          <p><strong>Plus-value des particuliers.</strong> 19 % d'impôt et 17,2 % de prélèvements sociaux, abattements pour durée de détention à partir de la 6<sup>e</sup> année (exonération à 22 ans pour l'impôt, 30 ans pour les prélèvements sociaux), forfaits de 7,5 % pour les frais d'acquisition et de 15 % pour les travaux au-delà de 5 ans, surtaxe au-delà de 50 000 € sans lissage.</p>
-          <p><strong>Simplifications.</strong> Un seul foyer fiscal détenant 100 % des parts, TMI constante, pas d'autres revenus fonciers, pas d'expiration des déficits reportables, pas de renouvellement du mobilier, pas de reprise chiffrée en cas de rupture de l'engagement Jeanbrun. Les taux de prélèvements sociaux (18,6 % en LMNP, flat tax à 31,4 %) suivent la LFSS 2026 et les modalités du dispositif Jeanbrun dans l'ancien attendent encore leur doctrine administrative : vérifiez-les avant toute décision. Ce simulateur ne remplace pas l'avis d'un conseiller fiscal.</p>
+          <p><strong>Impôt du foyer.</strong> L'impôt sur le revenu est calculé avec le barème 2026, le plafonnement du quotient familial, la décote et la contribution sur les hauts revenus. Chaque année, l'impôt du projet est la différence entre l'impôt du foyer avec et sans les revenus locatifs : un revenu foncier peut ainsi faire changer de tranche, et un déficit en faire descendre. Les prélèvements sociaux s'ajoutent sur le revenu locatif imposable. Le revenu du foyer est supposé constant.</p>
+          <p><strong>Location nue et SCI à l'IR.</strong> Micro-foncier avec abattement de 30 % si les loyers ne dépassent pas 15 000 €. Au réel, les charges, intérêts, assurance, frais de dossier et travaux d'entretien ou d'amélioration sont déductibles. Le déficit hors intérêts s'impute sur le revenu global dans la limite de 10 700 € ; le reste est reporté sur les revenus fonciers des 10 années suivantes, puis perdu. Si le bien est vendu avant le 31 décembre de la 3<sup>e</sup> année suivant une imputation, le déficit imputé est repris l'année de la vente. La SCI à l'IR est toujours au réel.</p>
+          <p><strong>LMNP.</strong> Micro-BIC avec abattement de 50 % jusqu'à 77 700 € de recettes. Au réel, frais d'acquisition déduits la première année, amortissement du bâti, des travaux et du mobilier. L'amortissement ne peut pas créer de déficit : l'excédent est reporté sans limite de durée ; les déficits de charges sont reportables 10 ans. Le mobilier peut être renouvelé à la fin de chaque durée d'amortissement. Depuis la loi de finances 2025, les amortissements du bâti et des travaux déduits sont réintégrés dans le calcul de la plus-value. Au-delà de 23 000 € de recettes, le statut LMP peut s'appliquer : il n'est pas simulé.</p>
+          <p><strong>SCI à l'IS.</strong> Toutes les charges, les frais d'acquisition et les amortissements sont déductibles ; les déficits sont reportables sans limite. IS à 15 % jusqu'à 42 500 € de bénéfice puis 25 %. La plus-value de cession est calculée sur la valeur nette comptable et imposée avec le résultat de la dernière année. Les flux annuels sont supposés transiter par le compte courant d'associé ; à la sortie, les bénéfices accumulés sont distribués et soumis à la flat tax.</p>
+          <p><strong>Jeanbrun (article 31 du CGI, loi de finances 2026).</strong> Location nue au réel, en résidence principale, dans un immeuble collectif, logement acquis entre le 21 février 2026 et le 31 décembre 2028, avec engagement de location de 9 ans. Amortissement annuel sur 80 % de la valeur (prix + travaux) : neuf 3,5 / 4,5 / 5,5 %, ancien avec travaux d'au moins 30 % du prix 3 / 3,5 / 4 %, plafonné à 8 000 / 10 000 / 12 000 € par an selon le niveau de loyer. Le déficit s'impute sur le revenu global dans la limite de 10 700 €. Si la détention est inférieure à 9 ans, les amortissements déduits sont repris l'année de la vente ; les modalités exactes de cette reprise ne sont pas encore précisées par l'administration.</p>
+          <p><strong>Financement.</strong> Le crédit couvre le coût total de l'opération diminué de l'apport, avec des mensualités constantes et une assurance calculée sur le capital initial. Les intérêts, l'assurance et les frais de dossier sont déductibles au réel et à l'IS. À la revente, le capital restant dû est soldé, avec les indemnités de remboursement anticipé si l'option est cochée. En prêt in fine, seuls les intérêts et l'assurance sont payés chaque mois ; le placement nanti est versé à l'an 0 et débloqué au terme, ou récupéré à la revente. En différé total, les intérêts capitalisés sont déduits au fur et à mesure qu'ils courent : c'est exact en BIC et à l'IS, mais en revenus fonciers ils ne sont déductibles qu'une fois payés. Le TRI porte sur les fonds personnels ; le TRI en achat comptant reprend les mêmes hypothèses sans crédit.</p>
+          <p><strong>Faisabilité bancaire.</strong> Taux d'endettement calculé comme les banques : (crédits en cours + nouvelle mensualité) / (revenus + 70 % des loyers), à comparer au plafond de 35 % et à la durée maximale de 25 ans (27 ans avec un différé dans le neuf ou avec travaux) fixés par le HCSF. Les banques peuvent déroger pour une partie de leurs dossiers.</p>
+          <p><strong>Plus-value des particuliers.</strong> 19 % d'impôt et 17,2 % de prélèvements sociaux, abattements pour durée de détention à partir de la 6<sup>e</sup> année (exonération à 22 ans pour l'impôt, 30 ans pour les prélèvements sociaux), forfaits de 7,5 % pour les frais d'acquisition et de 15 % pour les travaux au-delà de 5 ans, surtaxe au-delà de 50 000 € avec lissage.</p>
+          <p><strong>Limites.</strong> Un seul foyer fiscal détenant 100 % des parts, revenu du foyer constant, pas d'autres revenus fonciers, pas de statut LMP, pas d'IFI ni de contribution différentielle sur les hauts revenus. Ce simulateur ne remplace pas l'avis d'un conseiller fiscal.</p>
+          <h3>Sources des règles</h3>
+          <ul class="sources" id="reglesSources"></ul>
         </div>
       </section>
     </div>
   </div>
 </div>
 
+<script src="regles.js"></script>
+<script src="moteur.js"></script>
 <script>
 (function () {
   "use strict";
 
-  const REGIMES = [
-    { code: "nu", label: "Location nue", color: "var(--s-nu)" },
-    { code: "lmnp", label: "LMNP", color: "var(--s-lmnp)" },
-    { code: "sciir", label: "SCI à l'IR", color: "var(--s-sciir)" },
-    { code: "sciis", label: "SCI à l'IS", color: "var(--s-sciis)" },
-    { code: "jeanbrun", label: "Jeanbrun", color: "var(--s-jeanbrun)" }
-  ];
-
-  // Taux et plafonds du dispositif Jeanbrun (LF 2026, art. 31 CGI)
-  const JEANBRUN = {
-    neuf:   { inter: [3.5, 8000], social: [4.5, 10000], tres: [5.5, 12000] },
-    ancien: { inter: [3.0, 8000], social: [3.5, 10000], tres: [4.0, 12000] }
-  };
+  const REGLES = window.REGLES;
+  const COULEURS = { nu: "var(--s-nu)", lmnp: "var(--s-lmnp)", sciir: "var(--s-sciir)", sciis: "var(--s-sciis)", jeanbrun: "var(--s-jeanbrun)" };
+  const REGIMES = Moteur.REGIMES.map(R => Object.assign({ color: COULEURS[R.code] }, R));
   const DECOTE_DEFAUT = { inter: 15, social: 30, tres: 45 };
-  const PLAFOND_DEFICIT_GLOBAL = 10700;
-  const PLAFOND_MICRO_FONCIER = 15000;
-  const PLAFOND_MICRO_BIC = 77700;
-  const SEUIL_LMP = 23000;
 
   const form = document.getElementById("form");
   const ids = Array.from(form.querySelectorAll("input, select")).map(el => el.id);
@@ -340,293 +358,9 @@ tr.sep td { border-bottom: 0; padding-top: 14px; font-family: var(--font-body); 
       else if (el.tagName === "SELECT" && isNaN(parseFloat(el.value))) p[id] = el.value;
       else p[id] = parseFloat(el.value) || 0;
     });
-    p.horizon = Math.max(1, Math.min(40, Math.round(p.horizon)));
-    p.duree = Math.max(1, Math.round(p.duree));
+    p.horizon = Math.round(p.horizon);
+    p.duree = Math.round(p.duree);
     return p;
-  }
-
-  // ---------- Moteur de calcul ----------
-
-  // Échéancier annuel : intérêts courus, capital et sommes versées à la banque (hors assurance)
-  function pret(capital, tauxAnnuel, dureeAns, type, differeMois, typeDiffere) {
-    const n = dureeAns * 12;
-    const out = { mensualite: 0, mensualiteDiffere: 0, interets: [], capital: [], verse: [], crd: [] };
-    if (capital <= 0) return out;
-    const r = tauxAnnuel / 100 / 12;
-    const d = type === "infine" ? 0 : Math.max(0, Math.min(Math.round(differeMois) || 0, n - 1));
-    let crd = capital, m = 0;
-    if (type === "infine") { m = capital * r; out.mensualite = m; }
-    out.mensualiteDiffere = d > 0 ? (typeDiffere === "total" ? 0 : capital * r) : 0;
-    for (let y = 0; y < dureeAns; y++) {
-      let i = 0, c = 0, v = 0;
-      for (let k = 0; k < 12; k++) {
-        const mois = y * 12 + k;
-        const ik = crd * r;
-        i += ik;
-        if (type === "infine") {
-          const ck = mois === n - 1 ? crd : 0;
-          c += ck; v += ik + ck; crd -= ck;
-        } else if (mois < d) {
-          if (typeDiffere === "total") crd += ik; else v += ik;
-        } else {
-          if (mois === d) {
-            const reste = n - d;
-            m = r > 0 ? crd * r / (1 - Math.pow(1 + r, -reste)) : crd / reste;
-            out.mensualite = m;
-          }
-          const ck = Math.min(m - ik, crd);
-          c += ck; v += ik + ck; crd -= ck;
-        }
-      }
-      out.interets.push(i); out.capital.push(c); out.verse.push(v); out.crd.push(Math.max(0, crd));
-    }
-    return out;
-  }
-
-  function impotSocietes(base) {
-    if (base <= 0) return 0;
-    return Math.min(base, 42500) * 0.15 + Math.max(0, base - 42500) * 0.25;
-  }
-
-  function abattementIR(n) {
-    if (n < 6) return 0;
-    if (n <= 21) return (n - 5) * 6;
-    return 100;
-  }
-  function abattementPS(n) {
-    if (n < 6) return 0;
-    if (n <= 21) return (n - 5) * 1.65;
-    if (n === 22) return 28;
-    if (n < 30) return 28 + (n - 22) * 9;
-    return 100;
-  }
-  function surtaxe(pvImposable) {
-    if (pvImposable <= 50000) return 0;
-    const taux = pvImposable <= 100000 ? 0.02 : pvImposable <= 150000 ? 0.03 : pvImposable <= 200000 ? 0.04 : pvImposable <= 250000 ? 0.05 : 0.06;
-    return pvImposable * taux;
-  }
-
-  // Plus-value immobilière des particuliers (nue, SCI IR, LMNP, Jeanbrun)
-  function plusValueParticuliers(p, venteNet, travauxRetenus, amortReintegre) {
-    const n = p.horizon;
-    const frais = Math.max(p.prix * p.notairePct / 100 + p.agence, p.prix * 0.075);
-    const travaux = n > 5 ? Math.max(p.prix * 0.15, travauxRetenus) : travauxRetenus;
-    const prixAcquisition = p.prix + frais + travaux - amortReintegre;
-    const pv = venteNet - prixAcquisition;
-    if (pv <= 0) return { pv, impot: 0 };
-    const baseIR = pv * (1 - abattementIR(n) / 100);
-    const basePS = pv * (1 - abattementPS(n) / 100);
-    const impot = baseIR * 0.19 + basePS * 0.172 + surtaxe(baseIR);
-    return { pv, impot };
-  }
-
-  function jeanbrunParams(p) {
-    const eligible = p.type === "neuf" || p.travaux >= 0.3 * p.prix;
-    const [taux, plafond] = JEANBRUN[p.type][p.jbCat];
-    const base = 0.8 * (p.prix + p.travaux);
-    return { eligible, taux, plafond, base, annuel: Math.min(base * taux / 100, plafond) };
-  }
-
-  function simulate(code, p, mode) {
-    const H = p.horizon;
-    const isLmnp = code === "lmnp", isSciIr = code === "sciir", isSciIs = code === "sciis", isJb = code === "jeanbrun";
-    const notaire = p.prix * p.notairePct / 100;
-    const mobilier = isLmnp ? p.mobilier : 0;
-    const creation = (isSciIr || isSciIs) ? p.creationSci : 0;
-    const cout = p.prix + notaire + p.agence + p.travaux + p.fraisBancaires + mobilier + creation;
-    const emprunt = Math.max(0, cout - p.apport);
-    const apport = cout - emprunt;
-    const loan = pret(emprunt, p.taux, p.duree, p.typePret, p.differe, p.typeDiffere);
-    // Placement nanti (prêt in fine) : versé à l'an 0, débloqué au terme du prêt ou à la revente
-    const nanti = p.typePret === "infine" && emprunt > 0 ? p.nanti : 0;
-    const placement = t => nanti * Math.pow(1 + p.nantiRend / 100, t);
-    const assurance = emprunt * p.assurPct / 100;
-    const loyerMensuel = isLmnp ? p.loyerNu * (1 + p.majMeuble / 100) : isJb ? p.loyerNu * (1 - p.decote / 100) : p.loyerNu;
-    const fixesSpecifiques = isLmnp ? p.comptaLmnp + p.cfe : isSciIr ? p.comptaSciIr + p.banqueSci : isSciIs ? p.comptaSciIs + p.banqueSci : 0;
-    const bati = p.prix * (1 - p.terrainPct / 100);
-    const jb = jeanbrunParams(p);
-
-    let regime = isSciIs ? "IS" : "Réel";
-    if ((code === "nu") && mode === "micro") regime = "Micro-foncier";
-    if (isLmnp && mode === "micro") regime = "Micro-BIC";
-    const notes = [];
-
-    let reportFoncier = 0, reportBIC = 0, reportAmort = 0, reportIS = 0;
-    let cumAmortLmnp = 0, cumDispoBT = 0, cumJb = 0, cumAmB = 0, cumAmT = 0, cumNetIS = 0;
-    const valeurVente = (p.prix + p.travaux) * Math.pow(1 + p.valo / 100, H);
-    const venteNet = valeurVente * (1 - p.fraisRevente / 100);
-    const years = [];
-
-    for (let y = 1; y <= H; y++) {
-      const gL = Math.pow(1 + p.irl / 100, y - 1);
-      const gC = Math.pow(1 + p.inflation / 100, y - 1);
-      const loyers = loyerMensuel * (12 - p.vacance) * gL;
-      const charges = (p.copro + p.tf + p.pno + p.entretien + fixesSpecifiques) * gC + loyers * (p.gestionPct + p.gliPct) / 100;
-      const interets = loan.interets[y - 1] || 0;
-      const capital = loan.capital[y - 1] || 0;
-      const verse = loan.verse[y - 1] || 0;
-      const assur = y <= p.duree && emprunt > 0 ? assurance : 0;
-      const crd = y <= p.duree ? (loan.crd[y - 1] || 0) : 0;
-      const deblocage = nanti > 0 && y === p.duree && y <= H ? placement(y) : 0;
-      const cfAvant = loyers - charges - verse - assur + deblocage;
-      let resultat = 0, impot = 0, amort = 0;
-
-      if (code === "nu" || isSciIr || isJb) {
-        if (regime === "Micro-foncier") {
-          resultat = loyers * 0.7;
-          impot = resultat * (p.tmi + p.psFoncier) / 100;
-        } else {
-          if (isJb && cumJb < jb.base) { amort = Math.min(jb.annuel, jb.base - cumJb); cumJb += amort; }
-          const horsInterets = charges + assur + (y === 1 ? p.fraisBancaires + (isJb ? 0 : p.travaux) : 0) + amort;
-          let r = loyers - horsInterets - interets;
-          resultat = r;
-          if (r >= 0) {
-            const u = Math.min(reportFoncier, r); reportFoncier -= u; r -= u;
-            impot = r * (p.tmi + p.psFoncier) / 100;
-          } else {
-            const deficit = -r;
-            const partInterets = Math.max(0, interets - loyers);
-            const imputable = Math.min(PLAFOND_DEFICIT_GLOBAL, Math.max(0, deficit - partInterets));
-            reportFoncier += deficit - imputable;
-            impot = -imputable * p.tmi / 100;
-          }
-        }
-      } else if (isLmnp) {
-        if (regime === "Micro-BIC") {
-          resultat = loyers * 0.5;
-          impot = resultat * (p.tmi + p.psLmnp) / 100;
-        } else {
-          const deductible = charges + assur + interets + (y === 1 ? notaire + p.agence + p.fraisBancaires : 0);
-          const amB = y <= p.durBati ? bati / p.durBati : 0;
-          const amT = y <= p.durTrav ? p.travaux / p.durTrav : 0;
-          const amM = y <= p.durMob ? p.mobilier / p.durMob : 0;
-          cumDispoBT += amB + amT;
-          let r = loyers - deductible;
-          if (r < 0) { reportBIC += -r; r = 0; }
-          else { const u = Math.min(reportBIC, r); reportBIC -= u; r -= u; }
-          const stock = reportAmort + amB + amT + amM;
-          amort = Math.min(r, stock);
-          reportAmort = stock - amort;
-          cumAmortLmnp += amort;
-          resultat = loyers - deductible - amort;
-          impot = Math.max(0, r - amort) * (p.tmi + p.psLmnp) / 100;
-        }
-        if (y === 1 && loyers > SEUIL_LMP) notes.push("Recettes meublées supérieures à 23 000 € : le statut LMP peut s'appliquer.");
-      } else if (isSciIs) {
-        const amB = y <= p.durBati ? bati / p.durBati : 0;
-        const amT = y <= p.durTrav ? p.travaux / p.durTrav : 0;
-        amort = amB + amT;
-        cumAmB += amB; cumAmT += amT;
-        const r = loyers - charges - assur - interets - amort - (y === 1 ? notaire + p.agence + p.fraisBancaires + creation : 0);
-        resultat = r;
-        if (r < 0) { reportIS += -r; impot = 0; }
-        else { const u = Math.min(reportIS, r); reportIS -= u; impot = impotSocietes(r - u); }
-        cumNetIS += r - impot;
-      }
-
-      years.push({ y, loyers, charges, interets: interets + assur, capital, deblocage, amort, resultat, impot, cfAvant, cfApres: cfAvant - impot, crd });
-    }
-
-    // Sortie
-    const crdFinal = years[H - 1].crd;
-    let impotSortie = 0, pv = 0;
-    if (isSciIs) {
-      const vnc = p.prix + p.travaux - cumAmB - cumAmT;
-      pv = venteNet - vnc;
-      let base = pv;
-      if (base > 0) { const u = Math.min(reportIS, base); base -= u; }
-      // Le résultat de la dernière année et la plus-value partagent la même base d'IS
-      const last = years[H - 1];
-      const baseLast = Math.max(0, last.resultat) ;
-      const isAvec = impotSocietes(Math.max(0, baseLast + base));
-      const isSans = impotSocietes(baseLast);
-      const isPV = pv > 0 ? Math.max(0, isAvec - isSans) : 0;
-      cumNetIS += pv - isPV;
-      const flat = p.sciDistrib ? Math.max(0, cumNetIS) * p.pfu / 100 : 0;
-      impotSortie = isPV + flat;
-    } else {
-      let travauxRetenus = 0, reintegre = 0;
-      if (isLmnp && regime === "Réel") { travauxRetenus = p.travaux; reintegre = Math.min(cumAmortLmnp, cumDispoBT); }
-      if (isLmnp && regime === "Micro-BIC") travauxRetenus = p.travaux;
-      if (isJb) { travauxRetenus = p.travaux; reintegre = p.jbReint ? cumJb : 0; }
-      const r = plusValueParticuliers(p, venteNet, travauxRetenus, reintegre);
-      pv = r.pv; impotSortie = r.impot;
-    }
-    const ira = p.ira && crdFinal > 0 ? Math.min(0.03 * crdFinal, crdFinal * p.taux / 100 / 2) : 0;
-    const placementSortie = nanti > 0 && H < p.duree ? placement(H) : 0;
-    const netSortie = venteNet - crdFinal - ira - impotSortie + placementSortie;
-    let cum = 0, effortMax = 0;
-    years.forEach(o => { cum += o.cfApres; effortMax = Math.min(effortMax, cum); });
-    const coutCredit = emprunt > 0 ? years.reduce((s, o) => s + o.interets, 0) + p.fraisBancaires + ira : 0;
-
-    const flux = [-apport - nanti].concat(years.map(o => o.cfApres));
-    flux[H] += netSortie;
-    const sumCfApres = years.reduce((s, o) => s + o.cfApres, 0);
-    const sumCfAvant = years.reduce((s, o) => s + o.cfAvant, 0);
-    const impots = years.reduce((s, o) => s + o.impot, 0) + impotSortie;
-    const prixRevient = p.prix + notaire + p.agence + p.travaux;
-    const y1 = years[0];
-
-    if (isJb) {
-      if (!jb.eligible) notes.push("Jeanbrun : dans l'ancien, les travaux doivent atteindre au moins 30 % du prix d'acquisition.");
-      if (H < 9) notes.push("Jeanbrun : la durée de détention est inférieure à l'engagement de location de 9 ans, les avantages seraient repris.");
-    }
-    if (code === "nu" && regime === "Micro-foncier" && y1.loyers > PLAFOND_MICRO_FONCIER) notes.push("Micro-foncier impossible au-delà de 15 000 € de loyers.");
-
-    return {
-      code, regime, notes, eligible: !isJb || jb.eligible,
-      cout, emprunt, apport, nanti, placementSortie,
-      mensualite: loan.mensualite + assurance / 12,
-      mensualiteDiffere: p.differe > 0 && p.typePret !== "infine" && emprunt > 0 ? loan.mensualiteDiffere + assurance / 12 : null,
-      interetsTotaux: loan.interets.reduce((s, v) => s + v, 0),
-      loyerMensuel, years, venteNet, crdFinal, ira, pv, impotSortie, netSortie,
-      coutCredit, effortMax: -effortMax,
-      tauxApport: apport / cout,
-      fondsInvestis: apport + nanti + years.reduce((s, o) => s + Math.max(0, -o.cfApres), 0),
-      multiple: (netSortie + years.reduce((s, o) => s + Math.max(0, o.cfApres), 0)) / (apport + nanti + years.reduce((s, o) => s + Math.max(0, -o.cfApres), 0)),
-      rendBrut: y1.loyers / prixRevient,
-      rendNet: (y1.loyers - y1.charges) / cout,
-      rendNetNet: years.reduce((s, o) => s + (o.loyers - o.charges - o.impot), 0) / H / cout,
-      cfMoyAvant: sumCfAvant / H / 12,
-      cfMoyApres: sumCfApres / H / 12,
-      cf1Apres: y1.cfApres / 12,
-      impots,
-      enrichissement: netSortie + sumCfApres - apport - nanti,
-      tri: irr(flux)
-    };
-  }
-
-  function irr(flux) {
-    const npv = r => flux.reduce((s, f, t) => s + f / Math.pow(1 + r, t), 0);
-    let lo = -0.99, hi = 1;
-    const fLo = npv(lo), fHi = npv(hi);
-    if (isNaN(fLo) || isNaN(fHi) || fLo * fHi > 0) return null;
-    for (let i = 0; i < 200; i++) {
-      const mid = (lo + hi) / 2;
-      const f = npv(mid);
-      if (Math.abs(f) < 1e-6) return mid;
-      if (f * fLo > 0) lo = mid; else hi = mid;
-    }
-    return (lo + hi) / 2;
-  }
-
-  function run(p) {
-    return REGIMES.map(R => {
-      const sel = R.code === "nu" ? p.regNu : R.code === "lmnp" ? p.regLmnp : "reel";
-      if (R.code === "nu" || R.code === "lmnp") {
-        const plafond = R.code === "nu" ? PLAFOND_MICRO_FONCIER : PLAFOND_MICRO_BIC;
-        const reel = simulate(R.code, p, "reel");
-        const microOk = reel.years[0].loyers <= plafond;
-        if (sel === "reel" || !microOk) {
-          if (sel === "micro" && !microOk) reel.notes.push((R.code === "nu" ? "Micro-foncier" : "Micro-BIC") + " impossible avec ce niveau de loyers : régime réel appliqué.");
-          return reel;
-        }
-        const micro = simulate(R.code, p, "micro");
-        if (sel === "micro") return micro;
-        return micro.enrichissement > reel.enrichissement ? micro : reel;
-      }
-      return simulate(R.code, p, "reel");
-    });
   }
 
   // ---------- Affichage ----------
@@ -635,11 +369,41 @@ tr.sep td { border-bottom: 0; padding-top: 14px; font-family: var(--font-body); 
   const pct = v => v == null || !isFinite(v) ? "—" : (v * 100).toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " %";
   const fmt = v => eur.format(Math.round(v) || 0);
   const cls = v => v < -0.5 ? ' class="neg"' : "";
+  const esc = s => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/"/g, "&quot;");
   function formatCell(v, kind) {
-    if (kind === "pct") return pct(v);
+    if (kind === "pct" || kind === "effort") return pct(v);
     if (kind === "x") return v.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " x";
     if (kind === "pts") return (v >= 0 ? "+" : "") + (v * 100).toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " pt";
     return fmt(v);
+  }
+
+  function renderRegles() {
+    const aVerifier = { decote: "décote", prelevementsSociaux: "prélèvements sociaux", jeanbrun: "dispositif Jeanbrun" };
+    const liste = Object.keys(REGLES).filter(k => REGLES[k] && REGLES[k].statut === "a_verifier").map(k => aVerifier[k] || k);
+    const date = new Date(REGLES.verifieLe).toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" });
+    document.getElementById("reglesVersion").textContent = `Règles : ${REGLES.millesime}, vérifiées le ${date}.` + (liste.length ? ` À confirmer : ${liste.join(", ")}.` : "");
+    document.getElementById("reglesSources").innerHTML = Object.keys(REGLES).filter(k => REGLES[k] && REGLES[k].source)
+      .map(k => `<li><span class="chip${REGLES[k].statut === "a_verifier" ? " warn" : ""}">${REGLES[k].statut === "a_verifier" ? "à vérifier" : "officiel"}</span> ${esc(REGLES[k].source)}</li>`).join("");
+  }
+
+  function renderValidation(p) {
+    const liste = Moteur.valider(p);
+    form.querySelectorAll(".field").forEach(f => { f.classList.remove("erreur", "alerte"); const m = f.querySelector(".msg"); if (m) m.remove(); });
+    liste.forEach(v => {
+      const el = document.getElementById(v.champ);
+      const f = el && el.closest(".field");
+      if (!f) return;
+      if (!f.classList.contains("erreur")) { f.classList.remove("alerte"); f.classList.add(v.niveau); }
+      const m = f.querySelector(".msg") || f.appendChild(Object.assign(document.createElement("p"), { className: "msg" }));
+      m.textContent = (m.textContent ? m.textContent + " " : "") + v.message;
+    });
+    return liste;
+  }
+
+  function renderFoyer(p) {
+    const couple = p.situation === "couple";
+    const ir = Moteur.impotRevenu(p.revenuImposable, Math.max(1, p.parts), couple);
+    document.getElementById("irInfo").textContent = `Impôt actuel du foyer : ${fmt(ir.impot)}, tranche marginale ${Math.round(Moteur.tmi(p.revenuImposable, Math.max(1, p.parts)) * 100) + " %"}` + (ir.decote > 0 ? `, décote ${fmt(ir.decote)}` : "") + (ir.plafonnementQF ? ", quotient familial plafonné" : "") + (ir.cehr > 0 ? `, contribution hauts revenus ${fmt(ir.cehr)}` : "") + ". Chaque régime est imposé par différence avec cet impôt.";
   }
 
   function renderFinInfo(p, res) {
@@ -649,11 +413,15 @@ tr.sep td { border-bottom: 0; padding-top: 14px; font-family: var(--font-body); 
         ? `Location nue : ${fmt(r.emprunt)} empruntés in fine sur ${p.duree} ans. Échéance de ${fmt(r.mensualite)} (intérêts et assurance), capital remboursé en une fois au terme. Intérêts sur toute la durée : ${fmt(r.interetsTotaux)}.` + (r.nanti > 0 ? ` Placement nanti : ${fmt(r.nanti)}, valeur au terme ${fmt(r.nanti * Math.pow(1 + p.nantiRend / 100, p.duree))}.` : " Sans placement nanti, le capital est à rembourser sur vos fonds propres au terme ou par la revente.")
         : `Location nue : ${fmt(r.emprunt)} empruntés sur ${p.duree} ans` + (r.mensualiteDiffere != null ? `, ${p.differe} mois de différé ${p.typeDiffere} à ${fmt(r.mensualiteDiffere)} par mois puis` : ",") + ` mensualité ${fmt(r.mensualite)}, apport ${pct(r.tauxApport)} du coût total. Intérêts sur toute la durée du prêt : ${fmt(r.interetsTotaux)}.`)
       : "Achat comptant : l'apport couvre la totalité du coût de l'opération.";
+    const te = r.tauxEffort;
+    const el = document.getElementById("hcsfInfo");
+    el.className = "hint" + (te ? (te.conforme ? " ok" : " ko") : "");
+    el.textContent = te ? `Taux d'endettement après projet : ${pct(te.taux)} (plafond 35 %, durée maximale ${te.dureeMax} ans) : ${te.conforme ? "finançable selon les règles HCSF." : "au-delà des règles HCSF, la banque devra utiliser sa marge de dérogation."}` : "";
   }
 
   // Apports testés : de 0 au comptant, en part du coût de la location nue
   function renderSensibilite(p) {
-    const ref = simulate("nu", Object.assign({}, p, { apport: 0 }), "reel");
+    const ref = Moteur.simuler("nu", Object.assign({}, p, { apport: 0 }), "reel");
     const frais = ref.cout - p.prix - p.travaux;
     const niveaux = [
       ["Aucun apport", 0],
@@ -665,7 +433,7 @@ tr.sep td { border-bottom: 0; padding-top: 14px; font-family: var(--font-body); 
     ];
     let h = "<thead><tr><th>Apport</th>" + REGIMES.map(R => `<th><span class="reg"><span class="dot" style="background:${R.color}"></span>${R.label}</span></th>`).join("") + "</tr></thead><tbody>";
     niveaux.forEach(([label, montant]) => {
-      const res = run(Object.assign({}, p, { apport: montant }));
+      const res = Moteur.comparer(Object.assign({}, p, { apport: montant }), { sansComptant: true });
       const tris = res.filter(r => r.eligible && r.tri != null).map(r => r.tri);
       const top = Math.max(...tris);
       h += `<tr><td>${label}<br><span class="hint">${isFinite(montant) ? fmt(montant) : fmt(ref.cout)}</span></td>` + res.map(r => {
@@ -678,10 +446,10 @@ tr.sep td { border-bottom: 0; padding-top: 14px; font-family: var(--font-body); 
   }
 
   function renderJbInfo(p) {
-    const jb = jeanbrunParams(p);
+    const jb = Moteur.jeanbrun(p);
     document.getElementById("jbInfo").textContent = jb.eligible
-      ? `Base amortissable ${fmt(jb.base)}, taux ${jb.taux.toLocaleString("fr-FR")} %, soit ${fmt(jb.annuel)} par an (plafond ${fmt(jb.plafond)}). Loyer retenu : ${fmt(p.loyerNu * (1 - p.decote / 100))} par mois.`
-      : `Non éligible : dans l'ancien, les travaux doivent représenter au moins 30 % du prix (${fmt(0.3 * p.prix)}).`;
+      ? `Base amortissable ${fmt(jb.base)}, taux ${pct(jb.taux)}, soit ${fmt(jb.annuel)} par an (plafond ${fmt(jb.plafond)}). Loyer retenu : ${fmt(p.loyerNu * (1 - p.decote / 100))} par mois.`
+      : `Non éligible : dans l'ancien, les travaux doivent représenter au moins 30 % du prix (${fmt(REGLES.jeanbrun.seuilTravauxAncien * p.prix)}).`;
   }
 
   function renderKpis(p, res) {
@@ -696,67 +464,88 @@ tr.sep td { border-bottom: 0; padding-top: 14px; font-family: var(--font-body); 
       ["Effet de levier", best.tri != null && best.triComptant != null ? formatCell(best.tri - best.triComptant, "pts") : "—", label(best.code) + ", TRI comptant " + pct(best.triComptant)],
       ["Mensualité", fmt(nu.mensualite), "assurance comprise, " + fmt(nu.emprunt) + " empruntés"]
     ].map(([k, v, s]) => `<div class="kpi"><span class="k">${k}</span><span class="v">${v}</span><span class="s">${s}</span></div>`).join("");
-    document.getElementById("synthHint").textContent = `${p.horizon} ans, TMI ${p.tmi} %`;
+    document.getElementById("synthHint").textContent = `${p.horizon} ans, tranche marginale ${Math.round(Moteur.tmi(p.revenuImposable, Math.max(1, p.parts)) * 100) + " %"}. Cliquez sur un chiffre pour voir son calcul.`;
   }
 
-  function renderSynth(res) {
-    const rows = [
-      ["sep", "Investissement et financement"],
-      ["Coût total de l'opération", r => r.cout, "eur"],
-      ["Apport", r => r.apport, "eur"],
-      ["Montant emprunté", r => r.emprunt, "eur"],
-      ["Mensualité, assurance comprise", r => r.mensualite, "eur"],
-      ["Mensualité pendant le différé", r => r.mensualiteDiffere, "eur"],
-      ["Placement nanti", r => r.nanti || null, "eur"],
-      ["Coût du crédit sur la détention", r => r.coutCredit, "eur", "min"],
-      ["Loyer mensuel retenu", r => r.loyerMensuel, "eur"],
-      ["sep", "Rendement"],
-      ["Rendement brut", r => r.rendBrut, "pct", "max"],
-      ["Rendement net de charges", r => r.rendNet, "pct", "max"],
-      ["Rendement net-net moyen", r => r.rendNetNet, "pct", "max"],
-      ["sep", "Trésorerie mensuelle"],
-      ["Avant impôt, moyenne", r => r.cfMoyAvant, "eur", "max"],
-      ["Après impôt, année 1", r => r.cf1Apres, "eur", "max"],
-      ["Après impôt, moyenne", r => r.cfMoyApres, "eur", "max"],
-      ["Effort d'épargne cumulé maximal", r => r.effortMax, "eur", "min"],
-      ["sep", "Revente"],
-      ["Prix de revente net de frais", r => r.venteNet, "eur"],
-      ["Capital restant dû", r => r.crdFinal, "eur"],
-      ["Indemnités de remboursement anticipé", r => r.ira, "eur"],
-      ["Plus-value imposable", r => Math.max(0, r.pv), "eur"],
-      ["Impôt de sortie", r => r.impotSortie, "eur", "min"],
-      ["sep", "Bilan"],
-      ["Impôts cumulés, sortie comprise", r => r.impots, "eur", "min"],
-      ["Enrichissement net", r => r.enrichissement, "eur", "max"],
-      ["Fonds personnels investis", r => r.fondsInvestis, "eur", "min"],
-      ["Multiple des fonds investis", r => r.multiple, "x", "max"],
-      ["TRI des fonds propres", r => r.tri, "pct", "max"],
-      ["TRI en achat comptant", r => r.triComptant, "pct", "max"],
-      ["Effet de levier du crédit", r => r.tri != null && r.triComptant != null ? r.tri - r.triComptant : null, "pts", "max"]
-    ];
+  // [libellé, valeur, format, meilleur sens, clé de la trace]
+  const SYNTH_ROWS = [
+    ["sep", "Investissement et financement"],
+    ["Coût total de l'opération", r => r.cout, "eur", null, "cout"],
+    ["Apport", r => r.apport, "eur", null, "apport"],
+    ["Montant emprunté", r => r.emprunt, "eur", null, "emprunt"],
+    ["Mensualité, assurance comprise", r => r.mensualite, "eur", null, "mensualite"],
+    ["Mensualité pendant le différé", r => r.mensualiteDiffere, "eur", null, "mensualite"],
+    ["Placement nanti", r => r.nanti || null, "eur", null, "fondsInvestis"],
+    ["Taux d'endettement (HCSF)", r => r.tauxEffort ? r.tauxEffort.taux : null, "effort", null, "tauxEffort"],
+    ["Coût du crédit sur la détention", r => r.coutCredit, "eur", "min", "coutCredit"],
+    ["Loyer mensuel retenu", r => r.loyerMensuel, "eur", null, "loyerMensuel"],
+    ["sep", "Rendement"],
+    ["Rendement brut", r => r.rendBrut, "pct", "max", "rendBrut"],
+    ["Rendement net de charges", r => r.rendNet, "pct", "max", "rendNet"],
+    ["Rendement net-net moyen", r => r.rendNetNet, "pct", "max", "rendNetNet"],
+    ["sep", "Trésorerie mensuelle"],
+    ["Avant impôt, moyenne", r => r.cfMoyAvant, "eur", "max", "cfMoyAvant"],
+    ["Après impôt, année 1", r => r.cf1Apres, "eur", "max", "cf1Apres"],
+    ["Après impôt, moyenne", r => r.cfMoyApres, "eur", "max", "cfMoyApres"],
+    ["Effort d'épargne cumulé maximal", r => r.effortMax, "eur", "min", "effortMax"],
+    ["sep", "Revente"],
+    ["Prix de revente net de frais", r => r.venteNet, "eur", null, "venteNet"],
+    ["Capital restant dû", r => r.crdFinal, "eur", null, "crdFinal"],
+    ["Indemnités de remboursement anticipé", r => r.ira, "eur", null, "ira"],
+    ["Plus-value imposable", r => Math.max(0, r.pv), "eur", null, "pv"],
+    ["Impôt de sortie", r => r.impotSortie, "eur", "min", "impotSortie"],
+    ["sep", "Bilan"],
+    ["Impôts cumulés, sortie comprise", r => r.impots, "eur", "min", "impots"],
+    ["Enrichissement net", r => r.enrichissement, "eur", "max", "enrichissement"],
+    ["Fonds personnels investis", r => r.fondsInvestis, "eur", "min", "fondsInvestis"],
+    ["Multiple des fonds investis", r => r.multiple, "x", "max", "multiple"],
+    ["TRI des fonds propres", r => r.tri, "pct", "max", "tri"],
+    ["TRI en achat comptant", r => r.triComptant, "pct", "max", "triComptant"],
+    ["Effet de levier du crédit", r => r.tri != null && r.triComptant != null ? r.tri - r.triComptant : null, "pts", "max", "levier"]
+  ];
+
+  function renderSynth(res, erreurs) {
     let h = "<thead><tr><th></th>" + res.map((r, i) => {
       const R = REGIMES[i];
-      const chips = `<br><span class="chip">${r.regime}</span>` + (r.notes.length ? ` <span class="chip warn">${r.eligible ? "à vérifier" : "non éligible"}</span>` : "");
+      const chips = `<br><span class="chip"${r.choixRegime ? ` title="${esc(r.choixRegime)}"` : ""}>${r.regime}</span>` + (r.notes.length ? ` <span class="chip warn">${r.eligible ? "à vérifier" : "non éligible"}</span>` : "");
       return `<th><span class="reg"><span class="dot" style="background:${R.color}"></span>${R.label}</span>${chips}</th>`;
     }).join("") + "</tr></thead><tbody>";
-    rows.forEach(row => {
+    SYNTH_ROWS.forEach((row, ri) => {
       if (row[0] === "sep") { h += `<tr class="sep"><td colspan="${res.length + 1}">${row[1]}</td></tr>`; return; }
       const [label, get, kind, dir] = row;
       const vals = res.map(r => r.eligible ? get(r) : null);
+      if (vals.every(v => v == null)) return;
       const valid = vals.filter(v => v != null && isFinite(v));
       const target = dir === "max" ? Math.max(...valid) : dir === "min" ? Math.min(...valid) : null;
-      h += `<tr><td>${label}</td>` + vals.map(v => {
+      h += `<tr><td>${label}</td>` + vals.map((v, i) => {
         if (v == null || !isFinite(v)) return `<td class="na">—</td>`;
-        const best = target != null && Math.abs(v - target) < (kind === "eur" ? 0.5 : 1e-6) && valid.length > 1;
-        const c = best ? ' class="best"' : (kind === "eur" ? v < -0.5 : v < 0) ? ' class="neg"' : "";
-        return `<td${c}>${formatCell(v, kind)}</td>`;
+        let c = "";
+        if (kind === "effort") c = res[i].tauxEffort.conforme ? "best" : "neg";
+        else if (target != null && Math.abs(v - target) < (kind === "eur" ? 0.5 : 1e-6) && valid.length > 1) c = "best";
+        else if (kind === "eur" ? v < -0.5 : v < 0) c = "neg";
+        return `<td class="clic ${c}" tabindex="0" data-r="${ri}" data-i="${i}">${formatCell(v, kind)}</td>`;
       }).join("") + "</tr>";
     });
     document.getElementById("synth").innerHTML = h + "</tbody>";
 
-    const alerts = [];
-    res.forEach(r => r.notes.forEach(n => { if (!alerts.includes(n)) alerts.push(n); }));
-    document.getElementById("alerts").innerHTML = alerts.map(a => `<li>${a}</li>`).join("");
+    const items = erreurs.map(v => `<li class="err">${esc(v.message)}</li>`);
+    const notes = [];
+    res.forEach(r => r.notes.forEach(n => { if (!notes.includes(n)) notes.push(n); }));
+    document.getElementById("alerts").innerHTML = items.concat(notes.map(a => `<li>${esc(a)}</li>`)).join("");
+  }
+
+  function afficherExplication(boite, titre, lignes) {
+    boite.hidden = false;
+    boite.innerHTML = `<div class="explication-head"><strong>${esc(titre)}</strong><button type="button" class="fermer" aria-label="Fermer l'explication">Fermer</button></div>` +
+      (lignes && lignes.length ? `<ul>${lignes.map(l => `<li>${esc(l)}</li>`).join("")}</ul>` : `<p class="hint">Pas de détail disponible pour cette valeur.</p>`);
+  }
+
+  function explicationSynth(td) {
+    document.querySelectorAll("#synth td.sel").forEach(c => c.classList.remove("sel"));
+    td.classList.add("sel");
+    const row = SYNTH_ROWS[+td.dataset.r];
+    const r = last[+td.dataset.i];
+    afficherExplication(document.getElementById("explication"), `${row[0]} · ${REGIMES[+td.dataset.i].label} (${r.regime})`, (r.trace[row[4]] || []).concat(row[4] === "cout" && r.choixRegime ? [r.choixRegime] : []));
   }
 
   function niceStep(range) {
@@ -788,8 +577,8 @@ tr.sep td { border-bottom: 0; padding-top: 14px; font-family: var(--font-body); 
     series.forEach(se => {
       const d = se.pts.map((v, t) => `${t ? "L" : "M"}${x(t).toFixed(1)},${y(v).toFixed(1)}`).join("");
       s += `<path d="${d}" fill="none" stroke="${se.R.color}" stroke-width="2.25" stroke-linejoin="round"></path>`;
-      const last = se.pts[se.pts.length - 1];
-      s += `<circle cx="${x(H)}" cy="${y(last)}" r="3.5" fill="${se.R.color}"></circle>`;
+      const lastPt = se.pts[se.pts.length - 1];
+      s += `<circle cx="${x(H)}" cy="${y(lastPt)}" r="3.5" fill="${se.R.color}"></circle>`;
     });
     document.getElementById("chart").innerHTML = s + "</svg>";
     document.getElementById("legend").innerHTML = series.map(se => `<span class="reg"><span class="dot" style="background:${se.R.color}"></span>${se.R.label} <span class="hint">${fmt(se.pts[se.pts.length - 1])}</span></span>`).join("");
@@ -801,36 +590,67 @@ tr.sep td { border-bottom: 0; padding-top: 14px; font-family: var(--font-body); 
   function renderDetail(res) {
     document.getElementById("tabs").innerHTML = REGIMES.map(R => `<button type="button" role="tab" data-code="${R.code}" aria-selected="${R.code === currentTab}"><span class="reg"><span class="dot" style="background:${R.color}"></span>${R.label}</span></button>`).join("");
     const r = res.find(o => o.code === currentTab);
-    if (!r.eligible) { document.getElementById("detail").innerHTML = `<tbody><tr><td class="na">${r.notes[0]}</td></tr></tbody>`; return; }
+    document.getElementById("explicationDetail").hidden = true;
+    if (!r.eligible) { document.getElementById("detail").innerHTML = `<tbody><tr><td class="na">${esc(r.notes.find(n => n.includes("30 %")) || r.notes[0])}</td></tr></tbody>`; return; }
     const impotLabel = r.code === "sciis" ? "IS" : "Impôt (− = économie)";
-    let h = `<thead><tr><th>Année</th><th>Loyers</th><th>Charges</th><th>Intérêts courus et assurance</th><th>Capital remboursé</th>${r.nanti > 0 ? "<th>Placement débloqué</th>" : ""}<th>Amortissement déduit</th><th>Résultat fiscal</th><th>${impotLabel}</th><th>Trésorerie avant impôt</th><th>Trésorerie après impôt</th><th>Capital restant dû</th></tr></thead><tbody>`;
+    const mobilier = r.years.some(o => o.investissement > 0);
+    let h = `<thead><tr><th>Année</th><th>Loyers</th><th>Charges</th><th>Intérêts courus et assurance</th><th>Capital remboursé</th>${r.nanti > 0 ? "<th>Placement débloqué</th>" : ""}${mobilier ? "<th>Mobilier renouvelé</th>" : ""}<th>Amortissement déduit</th><th>Résultat fiscal</th><th>${impotLabel}</th><th>Trésorerie avant impôt</th><th>Trésorerie après impôt</th><th>Capital restant dû</th></tr></thead><tbody>`;
     r.years.forEach(o => {
-      h += `<tr><td>${o.y}</td><td>${fmt(o.loyers)}</td><td>${fmt(o.charges)}</td><td>${fmt(o.interets)}</td><td>${fmt(o.capital)}</td>${r.nanti > 0 ? `<td>${fmt(o.deblocage)}</td>` : ""}<td>${fmt(o.amort)}</td><td${cls(o.resultat)}>${fmt(o.resultat)}</td><td${cls(-o.impot)}>${fmt(o.impot)}</td><td${cls(o.cfAvant)}>${fmt(o.cfAvant)}</td><td${cls(o.cfApres)}>${fmt(o.cfApres)}</td><td>${fmt(o.crd)}</td></tr>`;
+      h += `<tr class="clic" tabindex="0" data-y="${o.y}"><td>${o.y}</td><td>${fmt(o.loyers)}</td><td>${fmt(o.charges)}</td><td>${fmt(o.interets)}</td><td>${fmt(o.capital)}</td>${r.nanti > 0 ? `<td>${fmt(o.deblocage)}</td>` : ""}${mobilier ? `<td>${fmt(o.investissement)}</td>` : ""}<td>${fmt(o.amort)}</td><td${cls(o.resultat)}>${fmt(o.resultat)}</td><td${cls(-o.impot)}>${fmt(o.impot)}</td><td${cls(o.cfAvant)}>${fmt(o.cfAvant)}</td><td${cls(o.cfApres)}>${fmt(o.cfApres)}</td><td>${fmt(o.crd)}</td></tr>`;
     });
-    h += `<tr><td>Revente</td><td colspan="${r.nanti > 0 ? 7 : 6}" class="na">Prix net ${fmt(r.venteNet)}, plus-value ${fmt(Math.max(0, r.pv))}, remboursement anticipé ${fmt(r.crdFinal)} + indemnités ${fmt(r.ira)}${r.placementSortie > 0 ? `, placement récupéré ${fmt(r.placementSortie)}` : ""}</td><td>${fmt(r.impotSortie)}</td><td colspan="2">${fmt(r.netSortie)}</td><td>${fmt(r.crdFinal)}</td></tr>`;
+    const cols = 6 + (r.nanti > 0 ? 1 : 0) + (mobilier ? 1 : 0);
+    h += `<tr class="clic" tabindex="0" data-y="sortie"><td>Revente</td><td colspan="${cols}" class="na">Prix net ${fmt(r.venteNet)}, plus-value ${fmt(Math.max(0, r.pv))}, remboursement anticipé ${fmt(r.crdFinal)} + indemnités ${fmt(r.ira)}${r.placementSortie > 0 ? `, placement récupéré ${fmt(r.placementSortie)}` : ""}</td><td>${fmt(r.impotSortie)}</td><td colspan="2">${fmt(r.netSortie)}</td><td>${fmt(r.crdFinal)}</td></tr>`;
     document.getElementById("detail").innerHTML = h + "</tbody>";
   }
+
+  function explicationDetail(tr) {
+    const r = last.find(o => o.code === currentTab);
+    document.querySelectorAll("#detail tr.sel").forEach(c => c.classList.remove("sel"));
+    tr.classList.add("sel");
+    const boite = document.getElementById("explicationDetail");
+    if (tr.dataset.y === "sortie") afficherExplication(boite, `Revente · ${REGIMES.find(R => R.code === r.code).label}`, r.trace.impotSortie);
+    else { const o = r.years[+tr.dataset.y - 1]; afficherExplication(boite, `Année ${o.y} · ${REGIMES.find(R => R.code === r.code).label} (${r.regime})`, o.detail); }
+  }
+
+  function activer(e, selecteur, fn) {
+    if (e.type === "keydown" && e.key !== "Enter" && e.key !== " ") return;
+    const cible = e.target.closest(selecteur);
+    if (!cible) return;
+    if (e.type === "keydown") e.preventDefault();
+    fn(cible);
+  }
+  ["click", "keydown"].forEach(t => {
+    document.getElementById("synth").addEventListener(t, e => activer(e, "td.clic", explicationSynth));
+    document.getElementById("detail").addEventListener(t, e => activer(e, "tr.clic", explicationDetail));
+  });
+  document.addEventListener("click", e => { const b = e.target.closest(".explication .fermer"); if (b) { b.closest(".explication").hidden = true; document.querySelectorAll("td.sel, tr.sel").forEach(c => c.classList.remove("sel")); } });
 
   document.getElementById("tabs").addEventListener("click", e => {
     const b = e.target.closest("button[data-code]");
     if (!b) return;
     currentTab = b.dataset.code;
     try { localStorage.setItem(STORE_KEY + "-tab", currentTab); } catch (err) {}
-    update();
+    renderDetail(last);
   });
 
   let last = null, lastP = null;
   function update() {
     const p = readParams();
-    const res = run(p);
-    const comptant = run(Object.assign({}, p, { apport: Infinity }));
-    res.forEach((r, i) => { r.triComptant = comptant[i].tri; });
+    renderFoyer(p);
+    const erreurs = renderValidation(p).filter(v => v.niveau === "erreur");
+    document.getElementById("resultats").classList.toggle("perime", erreurs.length > 0);
+    if (erreurs.length) {
+      document.getElementById("alerts").innerHTML = erreurs.map(v => `<li class="err">${esc(v.message)} Les résultats affichés correspondent à la dernière saisie valide.</li>`).join("");
+      return;
+    }
+    const res = Moteur.comparer(p);
     last = res; lastP = p;
+    document.getElementById("explication").hidden = true;
     renderJbInfo(p);
     renderFinInfo(p, res);
     renderSensibilite(p);
     renderKpis(p, res);
-    renderSynth(res);
+    renderSynth(res, erreurs);
     renderChart(res);
     renderDetail(res);
     try { const s = {}; ids.forEach(id => { const el = document.getElementById(id); s[id] = el.type === "checkbox" ? el.checked : el.value; }); localStorage.setItem(STORE_KEY, JSON.stringify(s)); } catch (e) {}
@@ -848,6 +668,7 @@ tr.sep td { border-bottom: 0; padding-top: 14px; font-family: var(--font-body); 
     syncPret();
     if (e.target.id === "type") document.getElementById("notairePct").value = e.target.value === "neuf" ? 2.5 : 7.5;
     if (e.target.id === "jbCat") document.getElementById("decote").value = DECOTE_DEFAUT[e.target.value];
+    if (e.target.id === "situation") { const parts = document.getElementById("parts"); if (e.target.value === "couple" && parseFloat(parts.value) < 2) parts.value = 2; }
     update();
   });
   form.addEventListener("submit", e => e.preventDefault());
@@ -997,20 +818,23 @@ tr.sep td { border-bottom: 0; padding-top: 14px; font-family: var(--font-body); 
     doc.text("Rapport de simulation locative", M, 20);
     doc.setFont("helvetica", "normal"); doc.setFontSize(9.5); doc.setTextColor(...PDF.muted);
     const pret = p.typePret === "infine" ? "prêt in fine" : "prêt amortissable" + (p.differe > 0 ? ", différé " + p.typeDiffere + " de " + p.differe + " mois" : "");
-    doc.text(txt(`Établi le ${date} · bien ${p.type} de ${fmt(p.prix)} · détention ${p.horizon} ans · ${pret} sur ${p.duree} ans à ${p.taux.toLocaleString("fr-FR")} % · TMI ${p.tmi} %`), M, 27);
+    doc.text(txt(`Établi le ${date} · bien ${p.type} de ${fmt(p.prix)} · détention ${p.horizon} ans · ${pret} sur ${p.duree} ans à ${p.taux.toLocaleString("fr-FR")} % · foyer ${p.situation === "couple" ? "en couple" : "seul"}, ${p.parts.toLocaleString("fr-FR")} parts, ${fmt(p.revenuImposable)} imposables`), M, 27);
+    doc.setFontSize(7.5);
+    doc.text(txt(document.getElementById("reglesVersion").textContent), M, 31);
 
     // Indicateurs clés
     const kpis = Array.from(document.querySelectorAll("#kpis .kpi"));
+    const yK = 35;
     const kw = (W - 2 * M - 3 * 4) / 4;
     kpis.forEach((k, i) => {
       const x = M + i * (kw + 4);
-      doc.setFillColor(...PDF.soft); doc.roundedRect(x, 32, kw, 20, 1.5, 1.5, "F");
-      doc.setFontSize(7); doc.setTextColor(...PDF.muted); doc.text(txt(k.querySelector(".k").textContent).toUpperCase(), x + 4, 38);
-      doc.setFont("helvetica", "bold"); doc.setFontSize(13); doc.setTextColor(...PDF.ink); doc.text(txt(k.querySelector(".v").textContent), x + 4, 45);
+      doc.setFillColor(...PDF.soft); doc.roundedRect(x, yK, kw, 20, 1.5, 1.5, "F");
+      doc.setFontSize(7); doc.setTextColor(...PDF.muted); doc.text(txt(k.querySelector(".k").textContent).toUpperCase(), x + 4, yK + 6);
+      doc.setFont("helvetica", "bold"); doc.setFontSize(13); doc.setTextColor(...PDF.ink); doc.text(txt(k.querySelector(".v").textContent), x + 4, yK + 13);
       doc.setFont("helvetica", "normal"); doc.setFontSize(7.5); doc.setTextColor(...PDF.muted);
-      doc.text(doc.splitTextToSize(txt(k.querySelector(".s").textContent), kw - 8)[0], x + 4, 49.5);
+      doc.text(doc.splitTextToSize(txt(k.querySelector(".s").textContent), kw - 8)[0], x + 4, yK + 17.5);
     });
-    let y = 58;
+    let y = yK + 26;
 
     const alerts = Array.from(document.querySelectorAll("#alerts li")).map(li => txt(li.textContent));
     alerts.forEach(a => {
@@ -1085,9 +909,16 @@ tr.sep td { border-bottom: 0; padding-top: 14px; font-family: var(--font-body); 
         .concat(nanti ? [cell(o.deblocage)] : [], [cell(o.amort), cell(o.resultat), cell(o.impot), cell(o.cfAvant), cell(o.cfApres), cell(o.crd)]));
       body.push([{ content: txt(`Revente : prix net ${fmt(r.venteNet)}, plus-value ${fmt(Math.max(0, r.pv))}, capital remboursé ${fmt(r.crdFinal)}, indemnités ${fmt(r.ira)}, impôt de sortie ${fmt(r.impotSortie)}` + (r.placementSortie > 0 ? `, placement récupéré ${fmt(r.placementSortie)}` : "") + `. Produit net : ${fmt(r.netSortie)}.`), colSpan: head.length, styles: { halign: "left", fontStyle: "bold" } }]);
       y = pdfTable(doc, head, body, y, { styles: { font: "helvetica", fontSize: 7.5, cellPadding: 1.3, textColor: PDF.ink, halign: "right", lineColor: PDF.line, lineWidth: { bottom: 0.1 } } });
+      doc.setFont("helvetica", "normal"); doc.setFontSize(8); doc.setTextColor(...PDF.muted);
+      const sortie = doc.splitTextToSize(txt("Calcul de l'impôt de sortie : " + r.trace.impotSortie.join(" ; ")), W - 2 * M);
+      if (y + 6 + sortie.length * 3.6 > 194) { doc.addPage(); y = 14; }
+      doc.text(sortie, M, y + 6);
+      y += 6 + sortie.length * 3.6;
       if (r.notes.length) {
-        doc.setFontSize(8); doc.setTextColor(...PDF.warn);
-        doc.text(doc.splitTextToSize(txt(r.notes.join(" ")), W - 2 * M), M, Math.min(y + 6, 192));
+        doc.setTextColor(...PDF.warn);
+        const n = doc.splitTextToSize(txt(r.notes.join(" ")), W - 2 * M);
+        if (y + 4 + n.length * 3.6 > 194) { doc.addPage(); y = 14; }
+        doc.text(n, M, y + 4);
       }
     });
 
@@ -1106,6 +937,18 @@ tr.sep td { border-bottom: 0; padding-top: 14px; font-family: var(--font-body); 
       doc.text(lines, M, y);
       y += lines.length * 3.8 + 4;
     });
+
+    const sources = Array.from(document.querySelectorAll("#reglesSources li")).map(li => txt(li.textContent));
+    if (sources.length) {
+      if (y + 10 > 190) { doc.addPage(); y = 18; }
+      doc.setFont("helvetica", "bold"); doc.setFontSize(9); doc.setTextColor(...PDF.ink); doc.text("Sources des règles", M, y); y += 4.5;
+      doc.setFont("helvetica", "normal"); doc.setFontSize(8); doc.setTextColor(...PDF.muted);
+      sources.forEach(l => {
+        const lines = doc.splitTextToSize(l, W - 2 * M);
+        if (y + lines.length * 3.6 > 194) { doc.addPage(); y = 18; }
+        doc.text(lines, M, y); y += lines.length * 3.6 + 1;
+      });
+    }
 
     const pages = doc.getNumberOfPages();
     for (let i = 1; i <= pages; i++) {
@@ -1147,8 +990,9 @@ tr.sep td { border-bottom: 0; padding-top: 14px; font-family: var(--font-body); 
     }
   });
 
-  window.__simulateur = { run, readParams, simulate };
+  window.__simulateur = { readParams, Moteur };
   syncPret();
+  renderRegles();
   update();
 })();
 </script>
