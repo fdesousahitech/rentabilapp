@@ -457,3 +457,9 @@ test("verdict : fiscalité unique", () => {
   assert.equal(v.meilleur, "sciis");
   assert.ok(v.titre.startsWith("SCI à l'IS"));
 });
+
+test("LMNP micro-BIC : pas d'honoraires d'expert-comptable", () => {
+  const micro = M.simuler("lmnp", EXEMPLE, "micro");
+  const reel = M.simuler("lmnp", EXEMPLE, "reel");
+  proche(reel.years[0].charges - micro.years[0].charges, EXEMPLE.comptaLmnp, 0.01);
+});

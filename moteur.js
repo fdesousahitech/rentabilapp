@@ -242,7 +242,8 @@
     const placement = t => nanti * Math.pow(1 + p.nantiRend / 100, t);
     const assurance = emprunt * p.assurPct / 100;
     const loyerMensuel = isLmnp ? p.loyerNu * (1 + p.majMeuble / 100) : p.loyerNu;
-    const fixesSpecifiques = isLmnp ? p.comptaLmnp + p.cfe : isSciIr ? p.comptaSciIr + p.banqueSci : isSciIs ? p.comptaSciIs + p.banqueSci : 0;
+    // Expert-comptable : obligatoire au réel seulement
+    const fixesSpecifiques = isLmnp ? (mode === "micro" ? 0 : p.comptaLmnp) + p.cfe : isSciIr ? p.comptaSciIr + p.banqueSci : isSciIs ? p.comptaSciIs + p.banqueSci : 0;
     const bati = p.prix * (1 - p.terrainPct / 100);
     const etalement = Math.max(1, Math.min(3, Math.round(p.etalementTravaux || 1)));
 
