@@ -219,6 +219,38 @@
     return (lo + hi) / 2;
   }
 
+  // ---------- Bail commercial et valeur de sortie ----------
+
+  const estPro = p => p.usage === "professionnel";
+  const capitalisation = p => estPro(p) && p.sortie === "capitalisation";
+
+  // Mois de loyer perdus en moyenne chaque année d'un bail 3/6/9 : franchise à l'entrée, puis à chaque
+  // échéance triennale un départ possible (probabilité p.departBail) suivi de la relocation et d'une
+  // nouvelle franchise. Espérance mathématique, les échéances restent fixées tous les 3 ans.
+  function bailCommercial(p, H) {
+    const q = Math.max(0, Math.min(100, p.departBail || 0)) / 100;
+    const perte = Math.max(0, p.relocation || 0) + Math.max(0, p.franchise || 0);
+    const mois = new Array(H + 1).fill(0), departs = new Array(H + 1).fill(0);
+    const repartir = (debut, duree, poids) => {
+      for (let y = 1; y <= H; y++) {
+        const a = Math.max(debut, (y - 1) * 12), b = Math.min(debut + duree, y * 12);
+        if (b > a) mois[y] += (b - a) * poids;
+      }
+    };
+    repartir(0, Math.max(0, p.franchise || 0), 1);
+    for (let t = 3; t < H; t += 3) { repartir(t * 12, perte, q); departs[t + 1] = q; }
+    return { mois: mois.map(m => Math.min(12, m)), departs };
+  }
+
+  // Valeur du bien en fin d'année y : valorisation annuelle, ou loyer annuel de l'année suivante divisé par
+  // un taux de capitalisation qui passe progressivement du taux à l'achat au taux de sortie saisi
+  function valeurBienFn(p, H, loyerAnnuel, indexation) {
+    const base = p.prix + p.travaux;
+    if (!capitalisation(p) || !(p.tauxCap > 0) || !(loyerAnnuel > 0)) return y => base * Math.pow(1 + p.valo / 100, y);
+    const entree = loyerAnnuel / base, sortie = p.tauxCap / 100;
+    return y => loyerAnnuel * Math.pow(1 + indexation / 100, y) / (entree + (sortie - entree) * Math.min(y, H) / H);
+  }
+
   // ---------- Simulation d'un régime ----------
 
   function simuler(code, p, mode) {
@@ -246,6 +278,10 @@
     const fixesSpecifiques = isLmnp ? (mode === "micro" ? 0 : p.comptaLmnp) + p.cfe : isSciIr ? p.comptaSciIr + p.banqueSci : isSciIs ? p.comptaSciIs + p.banqueSci : 0;
     const bati = p.prix * (1 - p.terrainPct / 100);
     const etalement = Math.max(1, Math.min(3, Math.round(p.etalementTravaux || 1)));
+    const pro = estPro(p);
+    const indexation = pro && isFinite(p.indexation) ? p.indexation : p.irl;
+    const bail = pro ? bailCommercial(p, H) : null;
+    const valeurDe = valeurBienFn(p, H, loyerMensuel * 12, indexation);
 
     let regime = isSciIs ? "IS" : "Réel";
     if (isNu && mode === "micro") regime = "Micro-foncier";
@@ -259,19 +295,22 @@
     const deficitsGlobaux = [];
     const mobilierLots = isLmnp ? [{ montant: p.mobilier, debut: 1 }] : [];
 
-    const valeurVente = (p.prix + p.travaux) * Math.pow(1 + p.valo / 100, H);
+    const valeurVente = valeurDe(H);
     const venteNet = valeurVente * (1 - p.fraisRevente / 100);
     const years = [];
     let isPV = 0, pvSCI = 0, vnc = 0;
     let repriseDeficit = 0;
 
     for (let y = 1; y <= H; y++) {
-      const gL = Math.pow(1 + p.irl / 100, y - 1);
+      const gL = Math.pow(1 + indexation / 100, y - 1);
       const gC = Math.pow(1 + p.inflation / 100, y - 1);
-      const loyers = loyerMensuel * (12 - p.vacance) * gL;
+      const moisLoues = pro ? 12 - bail.mois[y] : 12 - p.vacance;
+      const loyers = loyerMensuel * moisLoues * gL;
+      // Départ du locataire : honoraires de relocation et remise en état, pondérés par la probabilité
+      const relocation = pro && bail.departs[y] > 0 ? bail.departs[y] * (loyerMensuel * 12 * gL * (p.honorairesReloc || 0) / 100 + (p.travauxReloc || 0) * gC) : 0;
       // Local professionnel sous bail commercial : copropriété et taxe foncière peuvent être refacturées au locataire
       const refacture = p.usage === "professionnel" && p.refacturation ? 0 : p.copro + p.tf;
-      const charges = (refacture + p.pno + p.entretien + fixesSpecifiques) * gC + loyers * (p.gestionPct + p.gliPct) / 100;
+      const charges = (refacture + p.pno + p.entretien + fixesSpecifiques) * gC + loyers * (p.gestionPct + p.gliPct) / 100 + relocation;
       const interets = loan.interets[y - 1] || 0;
       const capital = loan.capital[y - 1] || 0;
       const verse = loan.verse[y - 1] || 0;
@@ -284,7 +323,7 @@
         mobilierLots.push({ montant: investissement, debut: y });
       }
       const cfAvant = loyers - charges - verse - assur + deblocage - investissement;
-      const detail = [`Loyers encaissés : ${e(loyerMensuel * gL)} × ${nf2.format(12 - p.vacance)} mois = ${e(loyers)}`, `Charges : ${e(charges)} ; intérêts ${e(interets)} ; assurance ${e(assur)}`];
+      const detail = [`Loyers encaissés : ${e(loyerMensuel * gL)} × ${nf2.format(moisLoues)} mois = ${e(loyers)}` + (pro && bail.mois[y] > 0 ? ` (${nf2.format(bail.mois[y])} mois perdus en moyenne : franchise et relocation)` : ""), `Charges : ${e(charges)}` + (relocation ? ` dont relocation ${e(relocation)}` : "") + ` ; intérêts ${e(interets)} ; assurance ${e(assur)}`];
       if (investissement) detail.push(`Renouvellement du mobilier : ${e(investissement)}`);
       let resultat = 0, amort = 0, impot = 0, imposable = 0, deficitGlobal = 0, ps = 0, tauxPS = 0;
 
@@ -371,7 +410,7 @@
         detail.push(`Impôt sur le revenu du foyer : revenu ${e(avant)} → ${e(apres)}, écart d'impôt ${e(irDiff)} ; prélèvements sociaux ${pc(tauxPS)} × ${e(imposable)} = ${e(ps)}`);
       }
 
-      const valeurBien = (p.prix + p.travaux) * Math.pow(1 + p.valo / 100, y);
+      const valeurBien = valeurDe(y);
       years.push({ y, loyers, charges, interets: interets + assur, verse, assurance: assur, valeurBien, capital, deblocage, investissement, amort, resultat, imposable, deficitGlobal, impot, cfAvant, cfApres: cfAvant - impot, crd, detail });
     }
 
@@ -450,7 +489,8 @@
       loyerMensuel, years, venteNet, crdFinal, ira, pv, impotSortie, netSortie, flux,
       coutCredit, effortMax: -effortMax, tauxApport: apport / cout,
       fondsInvestis, multiple: (netSortie + positifs) / fondsInvestis,
-      rendBrut: y1.loyers / prixRevient,
+      // Local professionnel : loyer annuel en place, sans la franchise de l'année 1 (convention du marché)
+      rendBrut: (pro ? loyerMensuel * 12 : y1.loyers) / prixRevient,
       rendNet: years.reduce((s, o) => s + (o.loyers - o.charges), 0) / H / cout,
       rendNetNet: years.reduce((s, o) => s + (o.loyers - o.charges - o.impot), 0) / H / cout,
       cfMoyAvant: sumCfAvant / H / 12, cfMoyApres: sumCfApres / H / 12, cf1Apres: y1.cfApres / 12,
@@ -471,15 +511,17 @@
         `Total : ${e(mensualite)}`
       ] : ["Pas de crédit."],
       coutCredit: [`Intérêts et assurance payés sur ${H} ans ${e(coutCredit - p.fraisBancaires - ira)} + frais bancaires ${e(p.fraisBancaires)} + indemnités ${e(ira)} = ${e(coutCredit)}`],
-      loyerMensuel: [isLmnp ? `Loyer nu ${e(p.loyerNu)} + majoration meublé ${nf2.format(p.majMeuble)} %`  : "Loyer nu saisi", `= ${e(loyerMensuel)} par mois`],
-      rendBrut: [`Loyers de l'année 1 ${e(y1.loyers)} / prix de revient ${e(prixRevient)} = ${pc(res.rendBrut)}`],
+      loyerMensuel: pro ? [`Loyer saisi hors taxes et hors charges : ${e(loyerMensuel)} par mois`, p.surface > 0 ? `Soit ${nf2.format(loyerMensuel * 12 / p.surface)} €/m²/an` : "", `Indexation annuelle (ILC ou ILAT) : ${nf2.format(indexation)} %`].filter(Boolean) : [isLmnp ? `Loyer nu ${e(p.loyerNu)} + majoration meublé ${nf2.format(p.majMeuble)} %`  : "Loyer nu saisi", `= ${e(loyerMensuel)} par mois`],
+      rendBrut: [pro ? `Loyer annuel en place ${e(loyerMensuel * 12)}, hors franchise / prix de revient ${e(prixRevient)} = ${pc(res.rendBrut)}` : `Loyers de l'année 1 ${e(y1.loyers)} / prix de revient ${e(prixRevient)} = ${pc(res.rendBrut)}`],
       rendNet: [`Moyenne sur ${H} ans de (loyers − charges) / coût total ${e(cout)} = ${pc(res.rendNet)}`, `Année 1 : (${e(y1.loyers)} − ${e(y1.charges)}) / ${e(cout)} = ${pc((y1.loyers - y1.charges) / cout)}`],
       rendNetNet: [`Moyenne sur ${H} ans de (loyers − charges − impôts) / coût total = ${pc(res.rendNetNet)}`],
       cfMoyAvant: [`Somme des trésoreries avant impôt ${e(sumCfAvant)} / ${H * 12} mois = ${e(res.cfMoyAvant)}`],
       cf1Apres: [`Trésorerie après impôt de l'année 1 ${e(y1.cfApres)} / 12 = ${e(res.cf1Apres)}`].concat(y1.detail),
       cfMoyApres: [`Somme des trésoreries après impôt ${e(sumCfApres)} / ${H * 12} mois = ${e(res.cfMoyApres)}`],
       effortMax: [`Point le plus bas de la trésorerie cumulée après impôt : ${e(-effortMax)}`],
-      venteNet: [`Valeur ${e(p.prix + p.travaux)} × (1 + ${nf2.format(p.valo)} %)^${H} = ${e(valeurVente)}, moins frais de revente ${nf2.format(p.fraisRevente)} % = ${e(venteNet)}`],
+      venteNet: [capitalisation(p) && p.tauxCap > 0
+        ? `Loyer annuel de l'année ${H + 1} ${e(loyerMensuel * 12 * Math.pow(1 + indexation / 100, H))} / taux de capitalisation ${nf2.format(p.tauxCap)} % = ${e(valeurVente)} (taux à l'achat ${pc(loyerMensuel * 12 / (p.prix + p.travaux))}), moins frais de revente ${nf2.format(p.fraisRevente)} % = ${e(venteNet)}`
+        : `Valeur ${e(p.prix + p.travaux)} × (1 + ${nf2.format(p.valo)} %)^${H} = ${e(valeurVente)}, moins frais de revente ${nf2.format(p.fraisRevente)} % = ${e(venteNet)}`],
       crdFinal: [`Capital restant dû à la fin de l'année ${H} : ${e(crdFinal)}`],
       ira: p.ira ? [`min(3 % × ${e(crdFinal)} ; 6 mois d'intérêts) = ${e(ira)}`] : ["Option désactivée."],
       pv: traceSortie, impotSortie: traceSortie,
@@ -608,14 +650,19 @@
     return out;
   }
 
+  // `pour` : variable proposée seulement pour ces paramètres (logement, local professionnel, sortie capitalisée)
   const VARIABLES = [
-    { cle: "valo", label: "Valorisation annuelle du bien", delta: 1, type: "abs", unite: " pt" },
+    { cle: "valo", label: "Valorisation annuelle du bien", delta: 1, type: "abs", unite: " pt", pour: p => !capitalisation(p) },
+    { cle: "tauxCap", label: "Taux de capitalisation à la sortie", delta: 1, type: "abs", unite: " pt", min: 1, pour: capitalisation },
+    { cle: "departBail", label: "Départ du locataire à chaque échéance", delta: 25, type: "abs", unite: " pt", min: 0, max: 100, pour: estPro },
+    { cle: "relocation", label: "Durée de relocation", delta: 6, type: "abs", unite: " mois", min: 0, pour: estPro },
     { cle: "loyerNu", label: "Loyer", delta: 0.10, type: "rel" },
     { cle: "prix", label: "Prix d'achat", delta: 0.10, type: "rel" },
     { cle: "taux", label: "Taux du crédit", delta: 1, type: "abs", unite: " pt", min: 0 },
-    { cle: "vacance", label: "Vacance locative", delta: 1, type: "abs", unite: " mois", min: 0 },
+    { cle: "vacance", label: "Vacance locative", delta: 1, type: "abs", unite: " mois", min: 0, pour: p => !estPro(p) },
     { cle: "travaux", label: "Montant des travaux", delta: 0.20, type: "rel" },
-    { cle: "irl", label: "Revalorisation des loyers", delta: 1, type: "abs", unite: " pt" },
+    { cle: "irl", label: "Revalorisation des loyers", delta: 1, type: "abs", unite: " pt", pour: p => !estPro(p) },
+    { cle: "indexation", label: "Indexation des loyers", delta: 1, type: "abs", unite: " pt", pour: estPro },
     { cle: "inflation", label: "Hausse des charges", delta: 1, type: "abs", unite: " pt" },
     { cle: "fraisRevente", label: "Frais de revente", delta: 2, type: "abs", unite: " pt", min: 0 }
   ];
@@ -624,6 +671,7 @@
     const x = p[v.cle];
     let val = v.type === "rel" ? x * (1 + sens * v.delta) : x + sens * v.delta;
     if (v.min != null) val = Math.max(v.min, val);
+    if (v.max != null) val = Math.min(v.max, val);
     return Object.assign({}, p, { [v.cle]: val });
   }
 
@@ -633,7 +681,7 @@
     const base = triDe(p);
     return {
       base,
-      lignes: VARIABLES.map(v => {
+      lignes: VARIABLES.filter(v => !v.pour || v.pour(p)).map(v => {
         const pb = varier(p, v, -1), ph = varier(p, v, 1);
         const triBas = triDe(pb), triHaut = triDe(ph);
         const amplitude = triBas != null && triHaut != null ? Math.abs(triHaut - triBas) : Infinity;
@@ -642,9 +690,10 @@
     };
   }
 
-  // Recherche par dichotomie de la valeur de x telle que f(x) = cible, f monotone
+  // Recherche par dichotomie de la valeur de x telle que f(x) = cible, f monotone.
+  // Un résultat non calculable (TRI sans solution) correspond à une perte : il compte comme −∞.
   function resoudre(f, cible, lo, hi, croissante) {
-    const g = x => { const v = f(x); return v == null || !isFinite(v) ? (croissante ? -Infinity : Infinity) : v; };
+    const g = x => { const v = f(x); return v == null || !isFinite(v) ? -Infinity : v; };
     const gLo = g(lo), gHi = g(hi);
     if (croissante ? gLo > cible : gLo < cible) return { valeur: lo, statut: "sous" };
     if (croissante ? gHi < cible : gHi > cible) return { valeur: hi, statut: "au-dessus" };
@@ -661,14 +710,17 @@
     const tri = q => { const r = simuler(code, q, mode); return r.eligible ? r.tri : null; };
     const prix = resoudre(x => tri(Object.assign({}, p, { prix: x })), cible, p.prix * 0.3, p.prix * 2, false);
     const loyer = resoudre(x => simuler(code, Object.assign({}, p, { loyerNu: x }), mode).cfMoyApres, 0, 0, p.loyerNu * 4, true);
-    const valo = resoudre(x => tri(Object.assign({}, p, { valo: x })), cible, -6, 10, true);
+    const cap = capitalisation(p) && p.tauxCap > 0;
+    const valo = cap ? resoudre(x => tri(Object.assign({}, p, { tauxCap: x })), cible, 2, 20, false) : resoudre(x => tri(Object.assign({}, p, { valo: x })), cible, -6, 10, true);
     return {
       cible,
-      prixMax: prix, loyerMin: loyer, valoMin: valo,
+      prixMax: prix, loyerMin: loyer, valoMin: cap ? null : valo, capMax: cap ? valo : null,
       trace: [
         `Prix d'achat maximal pour un TRI de ${pc(cible)} : ` + (prix.statut === "ok" ? e(prix.valeur) : prix.statut === "sous" ? `inatteignable même à ${e(prix.valeur)}` : `supérieur à ${e(prix.valeur)}`),
-        `Loyer nu minimal pour une trésorerie moyenne après impôt nulle : ` + (loyer.statut === "ok" ? e(loyer.valeur) + " par mois" : loyer.statut === "sous" ? "trésorerie positive même sans loyer" : `supérieur à ${e(loyer.valeur)} par mois`),
-        `Valorisation annuelle minimale pour un TRI de ${pc(cible)} : ` + (valo.statut === "ok" ? nf2.format(valo.valeur) + " %" : valo.statut === "sous" ? "atteint même avec une baisse de 6 % par an" : "plus de 10 % par an")
+        `${estPro(p) ? "Loyer" : "Loyer nu"} minimal pour une trésorerie moyenne après impôt nulle : ` + (loyer.statut === "ok" ? e(loyer.valeur) + " par mois" : loyer.statut === "sous" ? "trésorerie positive même sans loyer" : `supérieur à ${e(loyer.valeur)} par mois`),
+        cap
+          ? `Taux de capitalisation maximal à la sortie pour un TRI de ${pc(cible)} : ` + (valo.statut === "ok" ? nf2.format(valo.valeur) + " %" : valo.statut === "sous" ? "inatteignable même à 2 %" : "atteint même au-delà de 20 %")
+          : `Valorisation annuelle minimale pour un TRI de ${pc(cible)} : ` + (valo.statut === "ok" ? nf2.format(valo.valeur) + " %" : valo.statut === "sous" ? "atteint même avec une baisse de 6 % par an" : "plus de 10 % par an")
       ]
     };
   }
@@ -693,16 +745,19 @@
   }
 
   const SCENARIOS = {
-    prudent: { label: "Prudent", ecarts: { valo: -1, loyerNu: -0.05, vacance: 1, irl: -0.5, inflation: 1 } },
+    prudent: { label: "Prudent", ecarts: { valo: -1, loyerNu: -0.05, vacance: 1, irl: -0.5, inflation: 1, indexation: -0.5, departBail: 25, relocation: 3, tauxCap: 0.75 } },
     central: { label: "Central", ecarts: {} },
-    optimiste: { label: "Optimiste", ecarts: { valo: 1, loyerNu: 0.05, vacance: -0.5, irl: 0.5, inflation: -0.5 } }
+    optimiste: { label: "Optimiste", ecarts: { valo: 1, loyerNu: 0.05, vacance: -0.5, irl: 0.5, inflation: -0.5, indexation: 0.5, departBail: -15, relocation: -3, tauxCap: -0.5 } }
   };
 
   function appliquerScenario(p, nom) {
     const ec = SCENARIOS[nom].ecarts;
     const q = Object.assign({}, p);
-    Object.keys(ec).forEach(k => { q[k] = k === "loyerNu" ? p[k] * (1 + ec[k]) : p[k] + ec[k]; });
+    Object.keys(ec).forEach(k => { if (k in p) q[k] = k === "loyerNu" ? p[k] * (1 + ec[k]) : p[k] + ec[k]; });
     q.vacance = Math.max(0, q.vacance);
+    if ("departBail" in q) q.departBail = Math.max(0, Math.min(100, q.departBail));
+    if ("relocation" in q) q.relocation = Math.max(0, q.relocation);
+    if ("tauxCap" in q) q.tauxCap = Math.max(1, q.tauxCap);
     return q;
   }
 
@@ -887,6 +942,17 @@
     if (p.surface > 0 && p.prix > 0) {
       const m2 = p.prix / p.surface;
       if (m2 < 300 || m2 > 25000) alerte("surface", `Prix de ${e(m2)}/m² : vérifiez la surface ou le prix.`);
+    }
+    if (estPro(p)) {
+      if (p.departBail < 0 || p.departBail > 100) err("departBail", "La probabilité de départ doit être comprise entre 0 et 100 %.");
+      if (p.franchise < 0 || p.franchise > 24) err("franchise", "La franchise doit être comprise entre 0 et 24 mois.");
+      if (p.sortie === "capitalisation") {
+        if (!(p.tauxCap > 0)) err("tauxCap", "Le taux de capitalisation doit être supérieur à zéro.");
+        else if (p.prix > 0 && p.loyerNu > 0) {
+          const entree = p.loyerNu * 12 / (p.prix + p.travaux);
+          if (p.tauxCap / 100 < entree - 0.01) alerte("tauxCap", `Taux de sortie inférieur de plus d'un point au taux à l'achat (${pc(entree)}) : hypothèse de revalorisation optimiste.`);
+        }
+      }
     }
     if (!(p.revenusMensuels > 0)) alerte("revenusMensuels", "Renseignez vos revenus mensuels pour vérifier la faisabilité bancaire.");
     return out;

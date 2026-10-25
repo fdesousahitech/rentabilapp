@@ -489,3 +489,68 @@ test("impôt annuel : année 1, moyenne et maximum", () => {
     proche(r.impotAnnuelMoyen * annuels.length + r.impotSortie, r.impots, 0.01, r.cle);
   });
 });
+
+// ---------- Bail commercial et valeur de sortie capitalisée ----------
+
+const BUREAU = avec({ usage: "professionnel", refacturation: true, prix: 300000, travaux: 0, loyerNu: 2000, indexation: 0, inflation: 0,
+  gestionPct: 0, gliPct: 0, franchise: 3, departBail: 0, relocation: 9, honorairesReloc: 15, travauxReloc: 0, sortie: "valorisation", tauxCap: 8 });
+
+test("bail commercial : franchise à l'entrée, indexation propre, vacance du logement ignorée", () => {
+  const r = M.simuler("nu", BUREAU, "reel");
+  // Année 1 : 12 − 3 mois de franchise = 9 mois × 2 000 € ; ensuite 12 mois, sans la vacance de 0,5 mois du logement
+  proche(r.years[0].loyers, 18000, 0.01);
+  proche(r.years[1].loyers, 24000, 0.01);
+  // Indexation ILC de 2 % : l'IRL n'est plus utilisé
+  const idx = M.simuler("nu", Object.assign({}, BUREAU, { indexation: 2, irl: 5 }), "reel");
+  proche(idx.years[1].loyers, 24000 * 1.02, 0.01);
+});
+
+test("bail commercial : départ possible à chaque échéance triennale", () => {
+  const r = M.simuler("nu", Object.assign({}, BUREAU, { departBail: 50, travauxReloc: 4000 }), "reel");
+  const base = M.simuler("nu", BUREAU, "reel");
+  // Échéance à la fin de l'année 3 : 50 % × (9 mois de relocation + 3 mois de franchise) = 6 mois perdus en année 4
+  proche(r.years[3].loyers, 24000 - 6 * 2000, 0.01);
+  proche(r.years[2].loyers, 24000, 0.01);
+  // Honoraires 50 % × 15 % × 24 000 € = 1 800 € et remise en état 50 % × 4 000 € = 2 000 €
+  proche(r.years[3].charges - base.years[3].charges, 3800, 0.01);
+  // Échéances suivantes : années 7, 10, 13 ; pas d'échéance prise en compte l'année de la revente
+  [6, 9, 12].forEach(i => proche(r.years[i].loyers, 12000, 0.01, `année ${i + 1}`));
+  proche(r.years[14].loyers, 24000, 0.01);
+});
+
+test("valeur de sortie par taux de capitalisation", () => {
+  const cap = o => M.simuler("nu", Object.assign({}, BUREAU, { franchise: 0, sortie: "capitalisation" }, o), "reel");
+  // Taux à l'achat 24 000 / 300 000 = 8 % : à taux constant, la valeur reste 300 000 €
+  proche(cap({ tauxCap: 8 }).years[14].valeurBien, 300000, 0.01);
+  // Taux de sortie 10 % : 24 000 / 10 % = 240 000 € ; à mi-parcours, taux intermédiaire
+  const r = cap({ tauxCap: 10 });
+  proche(r.years[14].valeurBien, 240000, 0.01);
+  proche(r.venteNet, 240000 * 0.96, 0.01);
+  proche(r.years[6].valeurBien, 24000 / (0.08 + 0.02 * 7 / 15), 0.01);
+  // Un point de taux de sortie en plus fait baisser le TRI ; la valorisation annuelle n'a plus d'effet
+  assert.ok(cap({ tauxCap: 9 }).tri < cap({ tauxCap: 8 }).tri);
+  proche(cap({ valo: 5 }).tri, cap({}).tri, 1e-9);
+  // Pour un logement, le mode est sans effet
+  proche(M.simuler("nu", avec({ sortie: "capitalisation", tauxCap: 20 }), "reel").venteNet, M.simuler("nu", EXEMPLE, "reel").venteNet, 1e-6);
+});
+
+test("bureaux : sensibilité, scénarios et seuils adaptés", () => {
+  const p = Object.assign({}, BUREAU, { sortie: "capitalisation", departBail: 25 });
+  const cles = M.sensibilite(p, "nu", "reel").lignes.map(l => l.cle);
+  ["tauxCap", "departBail", "relocation", "indexation"].forEach(c => assert.ok(cles.includes(c), c));
+  ["valo", "vacance", "irl"].forEach(c => assert.ok(!cles.includes(c), c));
+  assert.ok(!M.sensibilite(EXEMPLE, "nu", "reel").lignes.some(l => l.cle === "tauxCap"));
+  const sc = M.scenarios(p, ["nu-reel"]);
+  assert.ok(sc[0].res[0].tri < sc[1].res[0].tri && sc[1].res[0].tri < sc[2].res[0].tri);
+  const s = M.seuils(p, "nu", "reel");
+  assert.equal(s.valoMin, null);
+  assert.ok(s.capMax && s.capMax.valeur > 0);
+  // Au taux de sortie maximal, le TRI atteint le placement alternatif
+  if (s.capMax.statut === "ok") proche(M.simuler("nu", Object.assign({}, p, { tauxCap: s.capMax.valeur }), "reel").tri, 0.03, 1e-4);
+});
+
+test("bureaux : rendement brut sur le loyer annuel en place, sans la franchise", () => {
+  const r = M.simuler("nu", BUREAU, "reel");
+  proche(r.rendBrut, 24000 / (300000 + 300000 * 0.075), 1e-9);
+  assert.ok(r.rendBrut > r.rendNet);
+});

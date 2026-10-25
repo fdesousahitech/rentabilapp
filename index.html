@@ -335,7 +335,7 @@ td.sel, tr.sel td { box-shadow: inset 0 0 0 2px var(--accent) !important; }
           <input type="hidden" id="precision" value="" data-texte>
           <div class="field" data-essentiel><label for="commune">Commune</label><div class="ctrl"><select id="commune" data-texte><option value="">—</option></select></div></div>
           <div class="field" data-essentiel data-usages="habitation"><label for="typeLogement">Type de logement</label><div class="ctrl"><select id="typeLogement"><option value="appartement">Appartement</option><option value="maison">Maison</option></select></div></div>
-          <div class="field" data-essentiel><label for="surface">Surface habitable</label><div class="ctrl"><input id="surface" type="number" step="1" min="0" value="45"><span class="u">m²</span></div></div>
+          <div class="field" data-essentiel><label for="surface" id="surfaceLabel">Surface habitable</label><div class="ctrl"><input id="surface" type="number" step="1" min="0" value="45"><span class="u">m²</span></div></div>
         </div>
       </details>
 
@@ -380,10 +380,19 @@ td.sel, tr.sel td { box-shadow: inset 0 0 0 2px var(--accent) !important; }
       <details class="group essentiel" open>
         <summary>Loyers</summary>
         <div class="fields">
-          <div class="field" data-essentiel><label for="loyerNu">Loyer nu hors charges</label><div class="ctrl"><input id="loyerNu" type="number" step="10" value="1050"><span class="u">€/mois</span></div></div>
+          <div class="field" data-essentiel><label for="loyerNu" id="loyerLabel">Loyer nu hors charges</label><div class="ctrl"><input id="loyerNu" type="number" step="10" value="1050"><span class="u">€/mois</span></div></div>
+          <p class="hint" id="loyerInfo" data-usages="professionnel"></p>
           <div class="field" data-fiscalites="lmnp-micro lmnp-reel"><label for="majMeuble">Majoration meublé</label><div class="ctrl"><input id="majMeuble" type="number" step="1" value="12"><span class="u">%</span></div></div>
-          <div class="field"><label for="vacance">Vacance locative</label><div class="ctrl"><input id="vacance" type="number" step="0.25" value="0.5"><span class="u">mois/an</span></div></div>
-          <div class="field"><label for="irl">Revalorisation annuelle (IRL)</label><div class="ctrl"><input id="irl" type="number" step="0.1" value="1.5"><span class="u">%</span></div></div>
+          <div class="field" data-usages="habitation"><label for="vacance">Vacance locative</label><div class="ctrl"><input id="vacance" type="number" step="0.25" value="0.5"><span class="u">mois/an</span></div></div>
+          <div class="field" data-usages="habitation"><label for="irl">Revalorisation annuelle (IRL)</label><div class="ctrl"><input id="irl" type="number" step="0.1" value="1.5"><span class="u">%</span></div></div>
+          <h3 data-usages="professionnel">Bail commercial 3/6/9</h3>
+          <div class="field" data-usages="professionnel"><label for="indexation">Indexation annuelle<small>ILC ou ILAT selon le bail</small></label><div class="ctrl"><input id="indexation" type="number" step="0.1" value="2"><span class="u">%</span></div></div>
+          <div class="field" data-essentiel data-usages="professionnel"><label for="franchise">Franchise de loyer<small>à l'entrée et à chaque relocation</small></label><div class="ctrl"><input id="franchise" type="number" step="1" min="0" value="3"><span class="u">mois</span></div></div>
+          <div class="field" data-essentiel data-usages="professionnel"><label for="departBail">Risque de départ à chaque échéance<small>tous les 3 ans</small></label><div class="ctrl"><input id="departBail" type="number" step="5" min="0" max="100" value="25"><span class="u">%</span></div></div>
+          <div class="field" data-usages="professionnel"><label for="relocation">Durée de relocation après un départ</label><div class="ctrl"><input id="relocation" type="number" step="1" min="0" value="9"><span class="u">mois</span></div></div>
+          <div class="field" data-usages="professionnel"><label for="honorairesReloc">Honoraires de relocation</label><div class="ctrl"><input id="honorairesReloc" type="number" step="1" min="0" value="15"><span class="u">% loyer annuel</span></div></div>
+          <div class="field" data-usages="professionnel"><label for="travauxReloc">Remise en état à chaque relocation</label><div class="ctrl"><input id="travauxReloc" type="number" step="500" min="0" value="0"><span class="u">€</span></div></div>
+          <p class="hint" data-usages="professionnel">Les départs sont pris en moyenne : avec 25 % de risque, un quart des mois de relocation et de franchise est déduit après chaque échéance. Le scénario prudent et l'analyse de sensibilité testent un départ plus probable.</p>
         </div>
       </details>
 
@@ -428,7 +437,10 @@ td.sel, tr.sel td { box-shadow: inset 0 0 0 2px var(--accent) !important; }
         <summary>Détention et revente</summary>
         <div class="fields">
           <div class="field" data-essentiel><label for="horizon">Durée de détention</label><div class="ctrl"><input id="horizon" type="number" step="1" min="1" max="40" value="15"><span class="u">ans</span></div></div>
-          <div class="field" data-essentiel><label for="valo">Valorisation annuelle du bien</label><div class="ctrl"><input id="valo" type="number" step="0.1" value="1.5"><span class="u">%</span></div></div>
+          <div class="field" data-essentiel data-usages="professionnel"><label for="sortie">Valeur de revente</label><div class="ctrl"><select id="sortie"><option value="capitalisation">Loyer / taux de capitalisation</option><option value="valorisation">Valorisation annuelle du prix</option></select></div></div>
+          <div class="field" data-essentiel data-usages="professionnel" data-sortie="capitalisation"><label for="tauxCap">Taux de capitalisation à la sortie<small>rendement attendu par l'acheteur</small></label><div class="ctrl"><input id="tauxCap" type="number" step="0.25" min="1" value="6.5"><span class="u">%</span></div></div>
+          <p class="hint" id="capInfo" data-usages="professionnel" data-sortie="capitalisation"></p>
+          <div class="field" data-essentiel data-sortie="valorisation"><label for="valo">Valorisation annuelle du bien</label><div class="ctrl"><input id="valo" type="number" step="0.1" value="1.5"><span class="u">%</span></div></div>
           <div class="field"><label for="fraisRevente">Frais de revente</label><div class="ctrl"><input id="fraisRevente" type="number" step="0.5" value="4"><span class="u">%</span></div></div>
           <div class="field" data-essentiel><label for="tauxAlternatif">Placement alternatif<small>rendement net de frais et d'impôts, sert de référence</small></label><div class="ctrl"><input id="tauxAlternatif" type="number" step="0.1" value="3"><span class="u">%/an</span></div></div>
           <div class="field check" data-fiscalites="sciis"><label for="sciDistrib">SCI IS : distribuer le boni à la sortie<small>flat tax sur les bénéfices accumulés</small></label><input id="sciDistrib" type="checkbox" checked></div>
@@ -534,7 +546,7 @@ td.sel, tr.sel td { box-shadow: inset 0 0 0 2px var(--accent) !important; }
           <p><strong>LMNP.</strong> Micro-BIC avec abattement de 50 % jusqu'à 77 700 € de recettes. Au réel, frais d'acquisition déduits la première année, amortissement du bâti, des travaux et du mobilier. L'amortissement ne peut pas créer de déficit : l'excédent est reporté sans limite de durée ; les déficits de charges sont reportables 10 ans. Le mobilier peut être renouvelé à la fin de chaque durée d'amortissement. Depuis la loi de finances 2025, les amortissements du bâti et des travaux déduits sont réintégrés dans le calcul de la plus-value. Au-delà de 23 000 € de recettes, le statut LMP peut s'appliquer : il n'est pas simulé.</p>
           <p><strong>SCI à l'IS.</strong> Toutes les charges, les frais d'acquisition et les amortissements sont déductibles ; les déficits sont reportables sans limite. IS à 15 % jusqu'à 42 500 € de bénéfice puis 25 %. La plus-value de cession est calculée sur la valeur nette comptable et imposée avec le résultat de la dernière année. Les flux annuels sont supposés transiter par le compte courant d'associé ; à la sortie, les bénéfices accumulés sont distribués et soumis à la flat tax.</p>
           <p><strong>Financement.</strong> Le crédit couvre le coût total de l'opération diminué de l'apport, avec des mensualités constantes et une assurance calculée sur le capital initial. Les intérêts, l'assurance et les frais de dossier sont déductibles au réel et à l'IS. À la revente, le capital restant dû est soldé, avec les indemnités de remboursement anticipé si l'option est cochée. En prêt in fine, seuls les intérêts et l'assurance sont payés chaque mois ; le placement nanti est versé à l'an 0 et débloqué au terme, ou récupéré à la revente. En différé total, les intérêts capitalisés sont déduits au fur et à mesure qu'ils courent : c'est exact en BIC et à l'IS, mais en revenus fonciers ils ne sont déductibles qu'une fois payés. Le TRI porte sur les fonds personnels ; le TRI en achat comptant reprend les mêmes hypothèses sans crédit.</p>
-          <p><strong>Bureaux et locaux professionnels.</strong> Loués nus, ils relèvent des revenus fonciers (micro-foncier ou réel) comme un logement, ou de la SCI à l'IR ou à l'IS. Le statut LMNP est réservé aux logements meublés et n'est donc pas proposé. Avec un bail commercial ou professionnel, la copropriété et la taxe foncière peuvent être refacturées au locataire. Non simulés : l'option pour la TVA sur les loyers, la taxe annuelle sur les bureaux en Île-de-France et dans certaines zones de Provence-Alpes-Côte d'Azur, et l'indemnité d'éviction du bail commercial.</p>
+          <p><strong>Bureaux et locaux professionnels.</strong> Loués nus, ils relèvent des revenus fonciers (micro-foncier ou réel) comme un logement, ou de la SCI à l'IR ou à l'IS. Le statut LMNP est réservé aux logements meublés et n'est donc pas proposé. Avec un bail commercial ou professionnel, la copropriété et la taxe foncière peuvent être refacturées au locataire. Le loyer est saisi hors taxes et hors charges et indexé sur l'ILC ou l'ILAT. Le bail 3/6/9 est modélisé par une franchise à l'entrée et, à chaque échéance triennale, un risque de départ du locataire suivi d'une relocation (vacance, nouvelle franchise, honoraires, remise en état), pris en moyenne pondérée par sa probabilité. La valeur de revente peut être calculée comme le loyer annuel divisé par un taux de capitalisation : le taux passe progressivement du taux à l'achat au taux de sortie saisi. Non simulés : l'option pour la TVA sur les loyers, la taxe annuelle sur les bureaux en Île-de-France et dans certaines zones de Provence-Alpes-Côte d'Azur, et l'indemnité d'éviction du bail commercial.</p>
           <p><strong>Faisabilité bancaire.</strong> Taux d'endettement calculé comme les banques : (crédits en cours + nouvelle mensualité) / (revenus + 70 % des loyers), à comparer au plafond de 35 % et à la durée maximale de 25 ans (27 ans avec un différé dans le neuf ou avec travaux) fixés par le HCSF. Les banques peuvent déroger pour une partie de leurs dossiers.</p>
           <p><strong>Plus-value des particuliers.</strong> 19 % d'impôt et 17,2 % de prélèvements sociaux, abattements pour durée de détention à partir de la 6<sup>e</sup> année (exonération à 22 ans pour l'impôt, 30 ans pour les prélèvements sociaux), forfaits de 7,5 % pour les frais d'acquisition et de 15 % pour les travaux au-delà de 5 ans, surtaxe au-delà de 50 000 € avec lissage.</p>
           <p><strong>Limites.</strong> Un seul foyer fiscal détenant 100 % des parts, revenu du foyer constant, pas d'autres revenus fonciers, pas de statut LMP, pas d'IFI ni de contribution différentielle sur les hauts revenus. Ce simulateur ne remplace pas l'avis d'un conseiller fiscal.</p>
@@ -629,6 +641,19 @@ td.sel, tr.sel td { box-shadow: inset 0 0 0 2px var(--accent) !important; }
       m.textContent = (m.textContent ? m.textContent + " " : "") + v.message;
     });
     return liste;
+  }
+
+  // Repères du bail commercial : loyer au m² par an et taux de capitalisation à l'achat
+  function renderBail(p) {
+    if (p.usage !== "professionnel") return;
+    const nb = (v, d) => v.toLocaleString("fr-FR", { maximumFractionDigits: d });
+    const annuel = p.loyerNu * 12;
+    document.getElementById("loyerInfo").textContent = `Soit ${fmt(annuel)} par an` + (p.surface > 0 ? `, ${nb(annuel / p.surface, 0)} €/m²/an` : "") + ", la convention des bureaux et commerces.";
+    const base = p.prix + p.travaux;
+    const entree = base > 0 ? annuel / base : 0;
+    const ecart = p.tauxCap / 100 - entree;
+    document.getElementById("capInfo").textContent = `Taux à l'achat : ${pct(entree)} (loyer annuel / prix et travaux). ` +
+      (Math.abs(ecart) < 0.0025 ? "Taux de sortie égal : la valeur ne suit que l'indexation du loyer." : ecart > 0 ? `Taux de sortie supérieur de ${nb(ecart * 100, 2)} pt : la valeur baisse à loyer égal.` : `Taux de sortie inférieur de ${nb(-ecart * 100, 2)} pt : la valeur monte à loyer égal.`);
   }
 
   function renderFoyer(p) {
@@ -1000,17 +1025,22 @@ td.sel, tr.sel td { box-shadow: inset 0 0 0 2px var(--accent) !important; }
     });
     document.getElementById("scenarios").innerHTML = h + "</tbody>";
     const ec = Moteur.SCENARIOS;
-    const decrire = e => [
-      `valorisation ${e.valo > 0 ? "+" : "−"}${Math.abs(e.valo)} pt`, `loyer ${e.loyerNu > 0 ? "+" : "−"}${Math.abs(e.loyerNu * 100)} %`,
-      `vacance ${e.vacance > 0 ? "+" : "−"}${Math.abs(e.vacance).toLocaleString("fr-FR")} mois`, `revalorisation des loyers ${e.irl > 0 ? "+" : "−"}${Math.abs(e.irl).toLocaleString("fr-FR")} pt`, `charges ${e.inflation > 0 ? "+" : "−"}${Math.abs(e.inflation).toLocaleString("fr-FR")} pt`
-    ].join(", ");
+    const sg = v => (v > 0 ? "+" : "−") + Math.abs(v).toLocaleString("fr-FR");
+    const pro = p.usage === "professionnel";
+    const decrire = e => (pro ? [
+      p.sortie === "capitalisation" ? `taux de sortie ${sg(e.tauxCap)} pt` : `valorisation ${sg(e.valo)} pt`, `loyer ${sg(e.loyerNu * 100)} %`,
+      `risque de départ ${sg(e.departBail)} pt`, `relocation ${sg(e.relocation)} mois`, `indexation ${sg(e.indexation)} pt`, `charges ${sg(e.inflation)} pt`
+    ] : [
+      `valorisation ${sg(e.valo)} pt`, `loyer ${sg(e.loyerNu * 100)} %`,
+      `vacance ${sg(e.vacance)} mois`, `revalorisation des loyers ${sg(e.irl)} pt`, `charges ${sg(e.inflation)} pt`
+    ]).join(", ");
     document.getElementById("scenariosHint").textContent = `TRI et enrichissement net. Prudent : ${decrire(ec.prudent.ecarts)}. Optimiste : ${decrire(ec.optimiste.ecarts)}.`;
     return sc;
   }
 
   function valeurVariable(cle, v) {
     if (cle === "prix" || cle === "loyerNu" || cle === "travaux") return fmt(v);
-    if (cle === "vacance") return v.toLocaleString("fr-FR", { maximumFractionDigits: 2 }) + " mois";
+    if (cle === "vacance" || cle === "relocation") return v.toLocaleString("fr-FR", { maximumFractionDigits: 2 }) + " mois";
     return v.toLocaleString("fr-FR", { maximumFractionDigits: 2 }) + " %";
   }
 
@@ -1036,7 +1066,7 @@ td.sel, tr.sel td { box-shadow: inset 0 0 0 2px var(--accent) !important; }
 
   function renderSeuils(p, r) {
     const s = Moteur.seuils(p, r.code, modeDe(r));
-    const actuel = [`prix actuel ${fmt(p.prix)}`, `loyer actuel ${fmt(p.loyerNu)}`, `hypothèse actuelle ${p.valo.toLocaleString("fr-FR")} %`];
+    const actuel = [`prix actuel ${fmt(p.prix)}`, `loyer actuel ${fmt(p.loyerNu)}`, `hypothèse actuelle ${(s.capMax ? p.tauxCap : p.valo).toLocaleString("fr-FR")} %`];
     document.getElementById("seuils").innerHTML = s.trace.map((l, i) => `<li>${esc(l)} <span class="hint">(${actuel[i]})</span></li>`).join("");
   }
 
@@ -1678,6 +1708,7 @@ td.sel, tr.sel td { box-shadow: inset 0 0 0 2px var(--accent) !important; }
   function update() {
     const p = readParams();
     renderFoyer(p);
+    renderBail(p);
     const erreurs = renderValidation(p).filter(v => v.niveau === "erreur");
     document.getElementById("resultats").classList.toggle("perime", erreurs.length > 0);
     if (erreurs.length) {
@@ -1719,11 +1750,17 @@ td.sel, tr.sel td { box-shadow: inset 0 0 0 2px var(--accent) !important; }
     if (choix.value !== "toutes" && !disponibles.includes(choix.value)) choix.value = "toutes";
     const f = choix.value;
     const effectives = f === "toutes" ? disponibles : [f];
+    const sortie = document.getElementById("sortie").value;
+    const pro = usage === "professionnel";
+    document.getElementById("surfaceLabel").textContent = pro ? "Surface utile" : "Surface habitable";
+    document.getElementById("loyerLabel").textContent = pro ? "Loyer hors taxes et hors charges" : "Loyer nu hors charges";
     let n = 0;
-    form.querySelectorAll("[data-fiscalites], [data-usages]").forEach(el => {
+    form.querySelectorAll("[data-fiscalites], [data-usages], [data-sortie]").forEach(el => {
       const horsFiscalite = el.dataset.fiscalites && !el.dataset.fiscalites.split(" ").some(c => effectives.includes(c));
       const horsUsage = el.dataset.usages && !el.dataset.usages.split(" ").includes(usage);
-      const masque = !!(horsFiscalite || horsUsage);
+      // Le mode de revente ne concerne que les locaux professionnels ; un logement garde la valorisation annuelle
+      const horsSortie = el.dataset.sortie && pro && el.dataset.sortie !== sortie;
+      const masque = !!(horsFiscalite || horsUsage || horsSortie);
       el.classList.toggle("hors-fiscalite", masque);
       if (masque && el.classList.contains("field") && horsFiscalite) n++;
     });
