@@ -4,9 +4,9 @@
  *   - DVF géolocalisées (ventes immobilières, DGFiP / Etalab) : prix au m² par commune et type de logement
  *   - Carte des loyers (ministère du Logement) : loyer d'annonce au m² par commune
  *
- * Sortie : immo/donnees/marche/<département>.json et immo/donnees/marche/meta.json
- * Exécution : node immo/donnees/construire.js (Node 20 ou plus, sans dépendance). Lancé par
- * .github/workflows/immo-donnees.yml, l'environnement de développement n'ayant pas accès à data.gouv.fr.
+ * Sortie : donnees/marche/<département>.json et donnees/marche/meta.json
+ * Exécution : node donnees/construire.js (Node 20 ou plus, sans dépendance). Lancé par
+ * .github/workflows/donnees.yml, l'environnement de développement n'ayant pas accès à data.gouv.fr.
  *
  * Seuls des agrégats sont publiés (médianes, quartiles, nombres de ventes), jamais de vente individuelle :
  * la réutilisation des DVF ne doit pas permettre de réidentifier les personnes.

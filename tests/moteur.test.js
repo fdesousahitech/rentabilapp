@@ -1,4 +1,4 @@
-// Tests du moteur de calcul : node --test (depuis le dossier immo/)
+// Tests du moteur de calcul : node --test (depuis la racine du dépôt)
 // Les valeurs attendues sont calculées à la main ; le détail du calcul figure en commentaire.
 "use strict";
 const test = require("node:test");

@@ -1,0 +1,41 @@
+name: Données de marché du comparateur
+
+on:
+  push:
+    paths: ["donnees/construire.js", ".github/workflows/donnees.yml"]
+  workflow_dispatch:
+  schedule:
+    # Le 3 de chaque mois : les DVF sont mises à jour en avril et en octobre, la Carte des loyers une fois par an
+    - cron: "17 4 3 * *"
+
+concurrency:
+  group: immo-donnees-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  construire:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Télécharger et agréger les données publiques
+        run: node donnees/construire.js
+        env:
+          NODE_OPTIONS: --max-old-space-size=6144
+      - name: Enregistrer les agrégats
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add donnees/marche
+          if git diff --cached --quiet; then
+            echo "Aucun changement"
+          else
+            git commit -m "Mise à jour des données de marché"
+            git push origin "HEAD:${GITHUB_REF_NAME}"
+          fi

@@ -139,7 +139,7 @@
 
     marche: {
       statut: "a_verifier",
-      source: "DVF géolocalisées (DGFiP, Etalab) ; Carte des loyers (ministère du Logement, ANIL) ; agrégats calculés par immo/donnees/construire.js",
+      source: "DVF géolocalisées (DGFiP, Etalab) ; Carte des loyers (ministère du Logement, ANIL) ; agrégats calculés par donnees/construire.js",
       ventesMinimum: 10,
       ecartValorisationAlerte: 0.01
     },
