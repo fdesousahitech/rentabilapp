@@ -149,6 +149,21 @@ td.sel, tr.sel td { box-shadow: inset 0 0 0 2px var(--accent) !important; }
 .explication .fermer { padding: 4px 10px; font-size: 12px; }
 .results.perime .panel { opacity: 0.55; }
 .sources { margin: 0; padding: 0; list-style: none; display: grid; gap: 6px; }
+.verdict-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.verdict-titre { font-family: var(--font-display); font-weight: 500; font-size: 21px; line-height: 1.25; margin: 0; text-wrap: balance; }
+.verdict-lignes, .seuils { margin: 0; padding-left: 18px; display: grid; gap: 4px; max-width: 90ch; }
+.alerts.suggestions li { background: var(--accent-soft); color: var(--fg); }
+.ctrl-inline { min-width: 210px; }
+.tornado td { vertical-align: middle; }
+.tornado .barre-cell { width: 38%; min-width: 160px; }
+.barre { position: relative; display: block; height: 14px; background: var(--bg); border-radius: 3px; }
+.barre .seg { position: absolute; top: 0; bottom: 0; }
+.barre .seg.plus { background: var(--good); }
+.barre .seg.moins { background: var(--bad); }
+.barre .base { position: absolute; top: -3px; bottom: -3px; width: 2px; margin-left: -1px; background: var(--fg); }
+.chart .alt { stroke: var(--muted); stroke-dasharray: 4 4; stroke-width: 1; }
+.tiret { width: 16px; border-top: 2px dashed var(--muted); display: inline-block; }
+.chart .actuel { stroke: var(--fg); stroke-opacity: 0.35; stroke-width: 1; }
 
 .tabs { display: flex; gap: 6px; flex-wrap: wrap; }
 .tabs button[aria-selected="true"] { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
@@ -189,6 +204,7 @@ td.sel, tr.sel td { box-shadow: inset 0 0 0 2px var(--accent) !important; }
           <div class="field"><label for="notairePct">Frais de notaire<small>≈ 7,5 % ancien, 2,5 % neuf</small></label><div class="ctrl"><input id="notairePct" type="number" step="0.1" value="7.5"><span class="u">%</span></div></div>
           <div class="field"><label for="agence">Frais d'agence acquéreur</label><div class="ctrl"><input id="agence" type="number" step="500" value="0"><span class="u">€</span></div></div>
           <div class="field"><label for="travaux">Travaux initiaux</label><div class="ctrl"><input id="travaux" type="number" step="1000" value="60000"><span class="u">€</span></div></div>
+          <div class="field"><label for="etalementTravaux">Déduction des travaux<small>location nue et SCI à l'IR</small></label><div class="ctrl"><select id="etalementTravaux"><option value="1">Sur 1 année</option><option value="2">Sur 2 années civiles</option><option value="3">Sur 3 années civiles</option></select></div></div>
           <div class="field"><label for="mobilier">Mobilier<small>LMNP uniquement</small></label><div class="ctrl"><input id="mobilier" type="number" step="500" value="6000"><span class="u">€</span></div></div>
           <div class="field"><label for="terrainPct">Quote-part terrain<small>non amortissable</small></label><div class="ctrl"><input id="terrainPct" type="number" step="1" value="15"><span class="u">%</span></div></div>
         </div>
@@ -279,6 +295,7 @@ td.sel, tr.sel td { box-shadow: inset 0 0 0 2px var(--accent) !important; }
           <div class="field"><label for="horizon">Durée de détention</label><div class="ctrl"><input id="horizon" type="number" step="1" min="1" max="40" value="15"><span class="u">ans</span></div></div>
           <div class="field"><label for="valo">Valorisation annuelle du bien</label><div class="ctrl"><input id="valo" type="number" step="0.1" value="1.5"><span class="u">%</span></div></div>
           <div class="field"><label for="fraisRevente">Frais de revente</label><div class="ctrl"><input id="fraisRevente" type="number" step="0.5" value="4"><span class="u">%</span></div></div>
+          <div class="field"><label for="tauxAlternatif">Placement alternatif<small>rendement net de frais et d'impôts, sert de référence</small></label><div class="ctrl"><input id="tauxAlternatif" type="number" step="0.1" value="3"><span class="u">%/an</span></div></div>
           <div class="field check"><label for="sciDistrib">SCI IS : distribuer le boni à la sortie<small>flat tax sur les bénéfices accumulés</small></label><input id="sciDistrib" type="checkbox" checked></div>
         </div>
       </details>
@@ -287,12 +304,38 @@ td.sel, tr.sel td { box-shadow: inset 0 0 0 2px var(--accent) !important; }
     </form>
 
     <div class="results" id="resultats">
+      <section class="panel" aria-labelledby="t-verdict">
+        <div class="panel-head"><h2 id="t-verdict">Verdict</h2><span class="hint" id="verdictHint"></span></div>
+        <div class="verdict-head"><p class="verdict-titre" id="verdictTitre"></p><span class="chip" id="verdictChip"></span></div>
+        <ul class="verdict-lignes" id="verdictLignes"></ul>
+        <ul class="alerts suggestions" id="suggestions"></ul>
+      </section>
+
       <section class="panel" aria-labelledby="t-synth">
         <div class="panel-head"><h2 id="t-synth">Synthèse sur la durée de détention</h2><span class="hint" id="synthHint"></span></div>
         <div class="kpis" id="kpis"></div>
         <ul class="alerts" id="alerts"></ul>
         <div class="scroll"><table id="synth"></table></div>
         <div class="explication" id="explication" hidden></div>
+      </section>
+
+      <section class="panel" aria-labelledby="t-robu">
+        <div class="panel-head"><h2 id="t-robu">Robustesse du résultat</h2></div>
+        <h3>Trois scénarios</h3>
+        <div class="scroll"><table id="scenarios"></table></div>
+        <p class="hint" id="scenariosHint"></p>
+        <div class="panel-head"><h3>Hypothèses qui pèsent le plus sur le TRI</h3><div class="ctrl ctrl-inline"><select id="decRegime" aria-label="Régime analysé"><option value="auto">Régime le plus rentable</option><option value="nu">Location nue</option><option value="lmnp">LMNP</option><option value="sciir">SCI à l'IR</option><option value="sciis">SCI à l'IS</option><option value="jeanbrun">Jeanbrun</option></select></div></div>
+        <div class="scroll"><table id="tornado" class="tornado"></table></div>
+        <p class="hint" id="tornadoHint"></p>
+        <h3>Seuils de décision</h3>
+        <ul class="seuils" id="seuils"></ul>
+      </section>
+
+      <section class="panel chart" aria-labelledby="t-horizon">
+        <div class="panel-head"><h2 id="t-horizon">Durée de détention</h2><span class="hint">TRI selon l'année de revente ; le point marque la meilleure durée, le trait vertical la durée saisie</span></div>
+        <div id="horizonChart"></div>
+        <div class="legend" id="horizonLegend"></div>
+        <div class="scroll"><table id="horizonTable"></table></div>
       </section>
 
       <section class="panel" aria-labelledby="t-sensi">
@@ -633,6 +676,147 @@ td.sel, tr.sel td { box-shadow: inset 0 0 0 2px var(--accent) !important; }
     renderDetail(last);
   });
 
+  // ---------- Aide à la décision ----------
+
+  const ptsTxt = v => (v >= 0 ? "+" : "−") + (Math.abs(v) * 100).toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " pt";
+
+  function renderVerdict(p, res) {
+    const v = Moteur.verdict(res, p);
+    document.getElementById("verdictTitre").textContent = v.titre || "Pas de verdict";
+    document.getElementById("verdictChip").className = "chip" + (v.significatif === false ? " warn" : "");
+    document.getElementById("verdictChip").textContent = v.significatif === false ? "écart non significatif" : v.meilleur ? "écart significatif" : "";
+    document.getElementById("verdictChip").hidden = !v.meilleur;
+    document.getElementById("verdictLignes").innerHTML = v.lignes.map(l => `<li>${esc(l)}</li>`).join("");
+    const sug = Moteur.suggestions(p, res);
+    document.getElementById("suggestions").innerHTML = sug.map(s => `<li>${esc(s.message)}</li>`).join("");
+    document.getElementById("verdictHint").textContent = `Seuil de significativité : ${ptsTxt(Moteur.SEUIL_SIGNIFICATIF)} de TRI`;
+    return v;
+  }
+
+  function regimeAnalyse(res) {
+    const choix = document.getElementById("decRegime").value;
+    if (choix !== "auto") return res.find(r => r.code === choix);
+    const ok = res.filter(r => r.eligible && r.tri != null);
+    return ok.reduce((a, b) => b.tri > a.tri ? b : a, ok[0]);
+  }
+  const modeDe = r => r.regime === "Micro-foncier" || r.regime === "Micro-BIC" ? "micro" : "reel";
+
+  function renderScenarios(p) {
+    const sc = Moteur.scenarios(p);
+    let h = "<thead><tr><th>Scénario</th>" + REGIMES.map(R => `<th><span class="reg"><span class="dot" style="background:${R.color}"></span>${R.label}</span></th>`).join("") + "</tr></thead><tbody>";
+    sc.forEach(s => {
+      const tris = s.res.filter(r => r.eligible && r.tri != null).map(r => r.tri);
+      const top = Math.max(...tris);
+      h += `<tr><td>${s.label}</td>` + s.res.map(r => {
+        if (!r.eligible || r.tri == null) return `<td class="na">—</td>`;
+        const c = Math.abs(r.tri - top) < 1e-9 ? "best" : r.tri < 0 ? "neg" : "";
+        return `<td class="${c}">${pct(r.tri)}<br><span class="hint">${fmt(r.enrichissement)}</span></td>`;
+      }).join("") + "</tr>";
+    });
+    document.getElementById("scenarios").innerHTML = h + "</tbody>";
+    const ec = Moteur.SCENARIOS;
+    const decrire = e => [
+      `valorisation ${e.valo > 0 ? "+" : "−"}${Math.abs(e.valo)} pt`, `loyer ${e.loyerNu > 0 ? "+" : "−"}${Math.abs(e.loyerNu * 100)} %`,
+      `vacance ${e.vacance > 0 ? "+" : "−"}${Math.abs(e.vacance).toLocaleString("fr-FR")} mois`, `revalorisation des loyers ${e.irl > 0 ? "+" : "−"}${Math.abs(e.irl).toLocaleString("fr-FR")} pt`, `charges ${e.inflation > 0 ? "+" : "−"}${Math.abs(e.inflation).toLocaleString("fr-FR")} pt`
+    ].join(", ");
+    document.getElementById("scenariosHint").textContent = `TRI et enrichissement net. Prudent : ${decrire(ec.prudent.ecarts)}. Optimiste : ${decrire(ec.optimiste.ecarts)}.`;
+    return sc;
+  }
+
+  function valeurVariable(cle, v) {
+    if (cle === "prix" || cle === "loyerNu" || cle === "travaux") return fmt(v);
+    if (cle === "vacance") return v.toLocaleString("fr-FR", { maximumFractionDigits: 2 }) + " mois";
+    return v.toLocaleString("fr-FR", { maximumFractionDigits: 2 }) + " %";
+  }
+
+  function renderTornado(p, r) {
+    const s = Moteur.sensibilite(p, r.code, modeDe(r));
+    const vals = [s.base].concat(...s.lignes.map(l => [l.triBas, l.triHaut])).filter(v => v != null);
+    const min = Math.min(...vals), max = Math.max(...vals);
+    const pos = v => ((v - min) / ((max - min) || 1) * 100).toFixed(2) + "%";
+    const seg = (v) => {
+      if (v == null) return "";
+      const a = Math.min(v, s.base), b = Math.max(v, s.base);
+      return `<span class="seg ${v >= s.base ? "plus" : "moins"}" style="left:${pos(a)};width:calc(${pos(b)} - ${pos(a)})"></span>`;
+    };
+    let h = `<thead><tr><th>Hypothèse</th><th>Basse</th><th class="barre-cell">TRI (base ${pct(s.base)})</th><th>Haute</th></tr></thead><tbody>`;
+    s.lignes.forEach(l => {
+      h += `<tr><td>${l.label}</td><td>${valeurVariable(l.cle, l.valeurBas)} → ${l.triBas == null ? "non éligible" : pct(l.triBas)}</td>` +
+        `<td class="barre-cell"><span class="barre">${seg(l.triBas)}${seg(l.triHaut)}<span class="base" style="left:${pos(s.base)}"></span></span></td>` +
+        `<td>${valeurVariable(l.cle, l.valeurHaut)} → ${l.triHaut == null ? "non éligible" : pct(l.triHaut)}</td></tr>`;
+    });
+    document.getElementById("tornado").innerHTML = h + "</tbody>";
+    document.getElementById("tornadoHint").textContent = `${REGIMES.find(R => R.code === r.code).label} (${r.regime}). Une hypothèse varie à la fois, les autres restent inchangées.`;
+  }
+
+  function renderSeuils(p, r) {
+    const s = Moteur.seuils(p, r.code, modeDe(r));
+    const actuel = [`prix actuel ${fmt(p.prix)}`, `loyer actuel ${fmt(p.loyerNu)}`, `hypothèse actuelle ${p.valo.toLocaleString("fr-FR")} %`];
+    document.getElementById("seuils").innerHTML = s.trace.map((l, i) => `<li>${esc(l)} <span class="hint">(${actuel[i]})</span></li>`).join("");
+  }
+
+  function renderHorizon(p) {
+    const h = Moteur.horizons(p, 30);
+    const W = 720, Hh = 280, L = 56, Rm = 16, T = 12, B = 30, N = h.points.length;
+    const all = [];
+    h.points.forEach(pt => Object.values(pt.tris).forEach(t => { if (t != null) all.push(t); }));
+    const alt = p.tauxAlternatif / 100;
+    let max = Math.max(alt, ...all), min = Math.max(-0.05, Math.min(0, ...all));
+    const step = niceStep(max - min);
+    min = Math.floor(min / step) * step; max = Math.ceil(max / step) * step;
+    const x = H => L + (W - L - Rm) * (H - 1) / (N - 1);
+    const y = v => T + (Hh - T - B) * (max - v) / (max - min);
+    let s = `<svg viewBox="0 0 ${W} ${Hh}" role="img" aria-label="TRI selon la durée de détention"><defs><clipPath id="zoneHorizon"><rect x="${L}" y="${T}" width="${W - L - Rm}" height="${Hh - T - B}"></rect></clipPath></defs>`;
+    for (let v = min; v <= max + step / 2; v += step) {
+      s += `<line class="${Math.abs(v) < step / 2 ? "zero" : "grid"}" x1="${L}" x2="${W - Rm}" y1="${y(v)}" y2="${y(v)}"></line>`;
+      s += `<text x="${L - 8}" y="${y(v) + 4}" text-anchor="end">${(v * 100).toLocaleString("fr-FR", { maximumFractionDigits: 1 })} %</text>`;
+    }
+    for (let H = 5; H <= N; H += 5) s += `<text x="${x(H)}" y="${Hh - 10}" text-anchor="middle">${H} ans</text>`;
+    s += `<line class="alt" x1="${L}" x2="${W - Rm}" y1="${y(alt)}" y2="${y(alt)}"></line>`;
+    if (p.horizon <= N) s += `<line class="actuel" x1="${x(p.horizon)}" x2="${x(p.horizon)}" y1="${T}" y2="${Hh - B}"></line>`;
+    s += `<g clip-path="url(#zoneHorizon)">`;
+    REGIMES.forEach(R => {
+      const d = h.points.filter(pt => pt.tris[R.code] != null).map((pt, i) => `${i ? "L" : "M"}${x(pt.H).toFixed(1)},${y(pt.tris[R.code]).toFixed(1)}`).join("");
+      if (d) s += `<path d="${d}" fill="none" stroke="${R.color}" stroke-width="2" stroke-linejoin="round"></path>`;
+      const o = h.optimum[R.code];
+      if (o) s += `<circle cx="${x(o.H)}" cy="${y(o.tri)}" r="4" fill="${R.color}"></circle>`;
+    });
+    document.getElementById("horizonChart").innerHTML = s + "</g></svg>";
+    document.getElementById("horizonLegend").innerHTML = `<span class="reg"><span class="tiret"></span>Placement alternatif ${pct(alt)}</span>` + REGIMES.filter(R => h.optimum[R.code]).map(R => `<span class="reg"><span class="dot" style="background:${R.color}"></span>${R.label} <span class="hint">meilleur TRI ${pct(h.optimum[R.code].tri)} à ${h.optimum[R.code].H} ans</span></span>`).join("");
+    const cols = [5, 10, 15, 20, 25, 30].filter(H => H <= N);
+    let t = "<thead><tr><th>Régime</th>" + cols.map(H => `<th>${H} ans</th>`).join("") + "<th>Meilleure durée</th></tr></thead><tbody>";
+    REGIMES.forEach(R => {
+      const o = h.optimum[R.code];
+      t += `<tr><td><span class="reg"><span class="dot" style="background:${R.color}"></span>${R.label}</span></td>` + cols.map(H => { const v = h.points[H - 1].tris[R.code]; return v == null ? `<td class="na">—</td>` : `<td${v < 0 ? ' class="neg"' : ""}>${pct(v)}</td>`; }).join("") + `<td>${o ? `${o.H} ans · ${pct(o.tri)}` : "—"}</td></tr>`;
+    });
+    document.getElementById("horizonTable").innerHTML = t + "</tbody>";
+  }
+
+  // Les analyses de robustesse sont plus coûteuses : calculées après une courte pause de saisie
+  let timerAnalyses = null, analysesEnAttente = null;
+  function renderAnalyses(p, res) {
+    clearTimeout(timerAnalyses);
+    analysesEnAttente = () => {
+      analysesEnAttente = null;
+      const r = regimeAnalyse(res);
+      if (r && r.eligible) { renderTornado(p, r); renderSeuils(p, r); }
+      renderScenarios(p);
+      renderHorizon(p);
+    };
+    timerAnalyses = setTimeout(analysesEnAttente, 120);
+  }
+  function terminerAnalyses() {
+    clearTimeout(timerAnalyses);
+    if (analysesEnAttente) analysesEnAttente();
+  }
+
+  document.getElementById("decRegime").addEventListener("change", () => {
+    if (!last) return;
+    const r = regimeAnalyse(last);
+    if (r && r.eligible) { renderTornado(lastP, r); renderSeuils(lastP, r); }
+    else { document.getElementById("tornado").innerHTML = `<tbody><tr><td class="na">Régime non éligible avec ces hypothèses.</td></tr></tbody>`; document.getElementById("seuils").innerHTML = ""; }
+  });
+
   let last = null, lastP = null;
   function update() {
     const p = readParams();
@@ -649,8 +833,10 @@ td.sel, tr.sel td { box-shadow: inset 0 0 0 2px var(--accent) !important; }
     renderJbInfo(p);
     renderFinInfo(p, res);
     renderSensibilite(p);
+    renderVerdict(p, res);
     renderKpis(p, res);
     renderSynth(res, erreurs);
+    renderAnalyses(p, res);
     renderChart(res);
     renderDetail(res);
     try { const s = {}; ids.forEach(id => { const el = document.getElementById(id); s[id] = el.type === "checkbox" ? el.checked : el.value; }); localStorage.setItem(STORE_KEY, JSON.stringify(s)); } catch (e) {}
@@ -844,7 +1030,14 @@ td.sel, tr.sel td { box-shadow: inset 0 0 0 2px var(--accent) !important; }
       y += lines.length * 4 + 5;
     });
 
-    y = sectionTitle(doc, "Synthèse sur la durée de détention", y + 4);
+    y = sectionTitle(doc, "Verdict : " + document.getElementById("verdictTitre").textContent, y + 4) + 1;
+    doc.setFont("helvetica", "normal"); doc.setFontSize(9); doc.setTextColor(...PDF.ink);
+    Array.from(document.querySelectorAll("#verdictLignes li, #suggestions li")).forEach(li => {
+      const lines = doc.splitTextToSize("- " + txt(li.textContent), W - 2 * M);
+      doc.text(lines, M, y + 3); y += lines.length * 4 + 1;
+    });
+
+    y = sectionTitle(doc, "Synthèse sur la durée de détention", y + 6);
     const synth = tableFromDom(document.getElementById("synth"));
     synth.head[0] = "";
     y = pdfTable(doc, synth.head, synth.body, y, { columnStyles: { 0: { halign: "left", cellWidth: 70 } } });
@@ -882,6 +1075,26 @@ td.sel, tr.sel td { box-shadow: inset 0 0 0 2px var(--accent) !important; }
       if (y + lines.length * 4 > 194) { doc.addPage(); y = 18; }
       doc.text(lines, M, y);
     }
+
+    // Robustesse et durée de détention
+    doc.addPage();
+    y = sectionTitle(doc, "Robustesse : trois scénarios (TRI et enrichissement net)", 18);
+    const sc = tableFromDom(document.getElementById("scenarios"));
+    y = pdfTable(doc, sc.head, sc.body, y, { columnStyles: { 0: { halign: "left", cellWidth: 30 } } });
+    doc.setFont("helvetica", "normal"); doc.setFontSize(7.5); doc.setTextColor(...PDF.muted);
+    const scHint = doc.splitTextToSize(txt(document.getElementById("scenariosHint").textContent), W - 2 * M);
+    doc.text(scHint, M, y + 4); y += 4 + scHint.length * 3.4;
+    y = sectionTitle(doc, "Hypothèses qui pèsent le plus sur le TRI", y + 8);
+    const tor = tableFromDom(document.getElementById("tornado"));
+    y = pdfTable(doc, [tor.head[0], tor.head[1], tor.head[3]], tor.body.map(l => l.length > 3 ? [l[0], l[1], l[3]] : l), y, { columnStyles: { 0: { halign: "left", cellWidth: 70 } } });
+    doc.setFont("helvetica", "normal"); doc.setFontSize(7.5); doc.setTextColor(...PDF.muted);
+    doc.text(txt(document.getElementById("tornadoHint").textContent), M, y + 4);
+    y = sectionTitle(doc, "Seuils de décision", y + 12) + 1;
+    doc.setFont("helvetica", "normal"); doc.setFontSize(9); doc.setTextColor(...PDF.ink);
+    Array.from(document.querySelectorAll("#seuils li")).forEach(li => { doc.text("- " + txt(li.textContent), M, y + 3); y += 5; });
+    y = sectionTitle(doc, "TRI selon la durée de détention", y + 8);
+    const hz = tableFromDom(document.getElementById("horizonTable"));
+    y = pdfTable(doc, hz.head, hz.body, y, { columnStyles: { 0: { halign: "left", cellWidth: 40 } } });
 
     // Effet de l'apport et trésorerie
     doc.addPage();
@@ -967,6 +1180,7 @@ td.sel, tr.sel td { box-shadow: inset 0 0 0 2px var(--accent) !important; }
     pdfStatus.textContent = "Préparation du PDF…";
     try {
       const jsPDF = await loadPdfLibs();
+      terminerAnalyses();
       const doc = buildPdf(jsPDF, lastP, last);
       const filename = `simulation-locative-${new Date().toISOString().slice(0, 10)}.pdf`;
       const inViewer = !!(window.claude && typeof window.claude.use === "function");

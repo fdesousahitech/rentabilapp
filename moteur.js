@@ -247,6 +247,7 @@
     const fixesSpecifiques = isLmnp ? p.comptaLmnp + p.cfe : isSciIr ? p.comptaSciIr + p.banqueSci : isSciIs ? p.comptaSciIs + p.banqueSci : 0;
     const bati = p.prix * (1 - p.terrainPct / 100);
     const jb = jeanbrun(p);
+    const etalement = Math.max(1, Math.min(3, Math.round(p.etalementTravaux || 1)));
 
     let regime = isSciIs ? "IS" : "Réel";
     if (isNu && mode === "micro") regime = "Micro-foncier";
@@ -295,7 +296,8 @@
           detail.push(`Micro-foncier : ${e(loyers)} × 70 % = ${e(resultat)} imposables`);
         } else {
           if (isJb && cumJb < jb.base) { amort = Math.min(jb.annuel, jb.base - cumJb); cumJb += amort; }
-          const horsInterets = charges + assur + (y === 1 ? p.fraisBancaires + (isJb ? 0 : p.travaux) : 0) + amort;
+          const travauxDeduits = isJb ? 0 : y <= etalement ? p.travaux / etalement : 0;
+          const horsInterets = charges + assur + (y === 1 ? p.fraisBancaires : 0) + travauxDeduits + amort;
           const r = loyers - horsInterets - interets;
           resultat = r;
           detail.push(`Résultat foncier : ${e(loyers)} − charges et assurance ${e(horsInterets - amort)}` + (amort ? ` − amortissement Jeanbrun ${e(amort)}` : "") + ` − intérêts ${e(interets)} = ${e(r)}`);
@@ -435,6 +437,8 @@
     const fondsInvestis = apport + nanti + negatifs;
     const mensualite = loan.mensualite + assurance / 12;
     const tri = irr(flux);
+    const tauxAlt = (p.tauxAlternatif || 0) / 100;
+    const vanAlt = van(flux, tauxAlt);
 
     if (isJb && !jb.eligible) notes.push("Jeanbrun : dans l'ancien, les travaux doivent atteindre au moins 30 % du prix d'acquisition.");
     const expireF = reportFoncier.expire() + reportBIC.expire();
@@ -453,6 +457,7 @@
       rendNetNet: years.reduce((s, o) => s + (o.loyers - o.charges - o.impot), 0) / H / cout,
       cfMoyAvant: sumCfAvant / H / 12, cfMoyApres: sumCfApres / H / 12, cf1Apres: y1.cfApres / 12,
       impots, enrichissement: netSortie + sumCfApres - apport - nanti, tri,
+      van: vanAlt,
       reportsRestants: reportFoncier.solde() + reportBIC.solde()
     };
     res.tauxEffort = tauxEffort(p, res);
@@ -484,6 +489,7 @@
       fondsInvestis: [`Apport ${e(apport)}` + (nanti ? ` + placement ${e(nanti)}` : "") + ` + efforts d'épargne annuels ${e(negatifs)} = ${e(fondsInvestis)}`],
       multiple: [`(Produit net ${e(netSortie)} + excédents annuels ${e(positifs)}) / fonds investis ${e(fondsInvestis)}`],
       tri: [`Taux qui annule la valeur actuelle des flux : an 0 ${e(flux[0])}, années 1 à ${H} trésorerie après impôt, année ${H} + produit net ${e(netSortie)}`, `TRI = ${tri == null ? "non calculable" : pc(tri)}`],
+      van: [`Flux actualisés au taux du placement alternatif (${pc(tauxAlt)}) : ${e(vanAlt)}`, vanAlt >= 0 ? "Positive : l'investissement rapporte plus que le placement alternatif." : "Négative : le placement alternatif rapporte davantage."],
       tauxEffort: res.tauxEffort ? res.tauxEffort.trace : []
     };
     return res;
@@ -542,6 +548,163 @@
     return res;
   }
 
+  // ---------- Aide à la décision ----------
+
+  const SEUIL_SIGNIFICATIF = 0.003;
+  const labelDe = code => REGIMES.find(R => R.code === code).label;
+  const modeDe = r => r.regime === "Micro-foncier" || r.regime === "Micro-BIC" ? "micro" : "reel";
+  const pts = v => (v >= 0 ? "+" : "−") + nf2.format(Math.abs(v) * 100) + " pt";
+
+  function van(flux, taux) {
+    return flux.reduce((s, f, t) => s + f / Math.pow(1 + taux, t), 0);
+  }
+
+  // Classe les régimes et dit si l'écart est assez grand pour trancher
+  function verdict(res, p) {
+    const ok = res.filter(r => r.eligible && r.tri != null).sort((a, b) => b.tri - a.tri);
+    if (!ok.length) return { meilleur: null, egalite: [], lignes: ["Aucun régime n'a de TRI calculable avec ces hypothèses."] };
+    const m = ok[0], s = ok[1];
+    const ecart = s ? m.tri - s.tri : null;
+    const significatif = ecart == null || ecart >= SEUIL_SIGNIFICATIF;
+    const egalite = ok.filter(r => m.tri - r.tri < SEUIL_SIGNIFICATIF).map(r => r.code);
+    const alt = (p.tauxAlternatif || 0) / 100;
+    const lignes = [];
+    let titre;
+    if (significatif) {
+      titre = `${labelDe(m.code)} est le régime le plus rentable`;
+      lignes.push(`TRI de ${pc(m.tri)}` + (s ? `, soit ${pts(ecart)} devant ${labelDe(s.code)} (${pc(s.tri)}).` : "."));
+    } else {
+      titre = egalite.length > 2 ? `${egalite.map(labelDe).join(", ")} font jeu égal` : `${labelDe(m.code)} et ${labelDe(s.code)} font jeu égal`;
+      lignes.push(`Écart de ${pts(ecart)} seulement entre ${labelDe(m.code)} (${pc(m.tri)}) et ${labelDe(s.code)} (${pc(s.tri)}) : il reste dans la marge d'incertitude des hypothèses. Choisissez plutôt sur la simplicité de gestion, la souplesse à la revente et la transmission.`);
+    }
+    const battu = m.tri < alt;
+    if (battu) lignes.push(`Aucun régime ne dépasse le placement alternatif à ${pc(alt)} : à ces conditions, cet investissement rapporte moins que ce placement.`);
+    else lignes.push(`Le meilleur régime dépasse le placement alternatif à ${pc(alt)} de ${pts(m.tri - alt)} ; valeur actuelle nette à ce taux : ${e(m.van)}.`);
+    if (m.tauxEffort && !m.tauxEffort.conforme) lignes.push(`Financement au-delà des règles HCSF (endettement ${pc(m.tauxEffort.taux)}) : l'accord de la banque n'est pas acquis.`);
+    return { meilleur: m.code, second: s ? s.code : null, ecart, significatif, egalite, battuParPlacement: battu, titre, lignes };
+  }
+
+  // Pistes chiffrées pour améliorer le montage
+  function suggestions(p, res) {
+    const out = [];
+    const etal = Math.round(p.etalementTravaux || 1);
+    if (p.travaux > 0 && etal < 2) {
+      ["nu", "sciir"].forEach(code => {
+        const r = res.find(o => o.code === code);
+        if (!r || r.regime !== "Réel") return;
+        const alt = simuler(code, Object.assign({}, p, { etalementTravaux: 2 }), "reel");
+        const gain = alt.enrichissement - r.enrichissement;
+        if (gain > 500) out.push({ code, gain, message: `${labelDe(code)} : répartir les travaux sur 2 années civiles (factures payées sur 2 ans) ferait gagner ${e(gain)} d'enrichissement, car le déficit imputable sur le revenu global est plafonné à 10 700 € par an.` });
+      });
+    }
+    return out;
+  }
+
+  const VARIABLES = [
+    { cle: "valo", label: "Valorisation annuelle du bien", delta: 1, type: "abs", unite: " pt" },
+    { cle: "loyerNu", label: "Loyer", delta: 0.10, type: "rel" },
+    { cle: "prix", label: "Prix d'achat", delta: 0.10, type: "rel" },
+    { cle: "taux", label: "Taux du crédit", delta: 1, type: "abs", unite: " pt", min: 0 },
+    { cle: "vacance", label: "Vacance locative", delta: 1, type: "abs", unite: " mois", min: 0 },
+    { cle: "travaux", label: "Montant des travaux", delta: 0.20, type: "rel" },
+    { cle: "irl", label: "Revalorisation des loyers", delta: 1, type: "abs", unite: " pt" },
+    { cle: "inflation", label: "Hausse des charges", delta: 1, type: "abs", unite: " pt" },
+    { cle: "fraisRevente", label: "Frais de revente", delta: 2, type: "abs", unite: " pt", min: 0 }
+  ];
+
+  function varier(p, v, sens) {
+    const x = p[v.cle];
+    let val = v.type === "rel" ? x * (1 + sens * v.delta) : x + sens * v.delta;
+    if (v.min != null) val = Math.max(v.min, val);
+    return Object.assign({}, p, { [v.cle]: val });
+  }
+
+  // Effet sur le TRI d'une variation de chaque hypothèse, de la plus influente à la moins influente
+  function sensibilite(p, code, mode) {
+    const triDe = q => { const r = simuler(code, q, mode); return r.eligible ? r.tri : null; };
+    const base = triDe(p);
+    return {
+      base,
+      lignes: VARIABLES.map(v => {
+        const pb = varier(p, v, -1), ph = varier(p, v, 1);
+        const triBas = triDe(pb), triHaut = triDe(ph);
+        const amplitude = triBas != null && triHaut != null ? Math.abs(triHaut - triBas) : Infinity;
+        return { cle: v.cle, label: v.label, valeurBas: pb[v.cle], valeurHaut: ph[v.cle], triBas, triHaut, amplitude };
+      }).sort((a, b) => b.amplitude - a.amplitude)
+    };
+  }
+
+  // Recherche par dichotomie de la valeur de x telle que f(x) = cible, f monotone
+  function resoudre(f, cible, lo, hi, croissante) {
+    const g = x => { const v = f(x); return v == null || !isFinite(v) ? (croissante ? -Infinity : Infinity) : v; };
+    const gLo = g(lo), gHi = g(hi);
+    if (croissante ? gLo > cible : gLo < cible) return { valeur: lo, statut: "sous" };
+    if (croissante ? gHi < cible : gHi > cible) return { valeur: hi, statut: "au-dessus" };
+    for (let i = 0; i < 50; i++) {
+      const mid = (lo + hi) / 2;
+      if ((g(mid) < cible) === croissante) lo = mid; else hi = mid;
+    }
+    return { valeur: (lo + hi) / 2, statut: "ok" };
+  }
+
+  // Seuils de décision : prix maximal, loyer minimal, valorisation minimale
+  function seuils(p, code, mode) {
+    const cible = (p.tauxAlternatif || 0) / 100;
+    const tri = q => { const r = simuler(code, q, mode); return r.eligible ? r.tri : null; };
+    const prix = resoudre(x => tri(Object.assign({}, p, { prix: x })), cible, p.prix * 0.3, p.prix * 2, false);
+    const loyer = resoudre(x => simuler(code, Object.assign({}, p, { loyerNu: x }), mode).cfMoyApres, 0, 0, p.loyerNu * 4, true);
+    const valo = resoudre(x => tri(Object.assign({}, p, { valo: x })), cible, -6, 10, true);
+    return {
+      cible,
+      prixMax: prix, loyerMin: loyer, valoMin: valo,
+      trace: [
+        `Prix d'achat maximal pour un TRI de ${pc(cible)} : ` + (prix.statut === "ok" ? e(prix.valeur) : prix.statut === "sous" ? `inatteignable même à ${e(prix.valeur)}` : `supérieur à ${e(prix.valeur)}`),
+        `Loyer nu minimal pour une trésorerie moyenne après impôt nulle : ` + (loyer.statut === "ok" ? e(loyer.valeur) + " par mois" : loyer.statut === "sous" ? "trésorerie positive même sans loyer" : `supérieur à ${e(loyer.valeur)} par mois`),
+        `Valorisation annuelle minimale pour un TRI de ${pc(cible)} : ` + (valo.statut === "ok" ? nf2.format(valo.valeur) + " %" : valo.statut === "sous" ? "atteint même avec une baisse de 6 % par an" : "plus de 10 % par an")
+      ]
+    };
+  }
+
+  // TRI de chaque régime selon la durée de détention
+  function horizons(p, max) {
+    const n = max || 30;
+    const points = [];
+    for (let H = 1; H <= n; H++) {
+      const res = comparer(Object.assign({}, p, { horizon: H }), { sansComptant: true });
+      const tris = {};
+      res.forEach(r => { tris[r.code] = r.eligible ? r.tri : null; });
+      points.push({ H, tris });
+    }
+    const optimum = {};
+    REGIMES.forEach(R => {
+      let best = null;
+      points.forEach(pt => { const t = pt.tris[R.code]; if (t != null && (best == null || t > best.tri + 1e-9)) best = { H: pt.H, tri: t }; });
+      optimum[R.code] = best;
+    });
+    return { points, optimum };
+  }
+
+  const SCENARIOS = {
+    prudent: { label: "Prudent", ecarts: { valo: -1, loyerNu: -0.05, vacance: 1, irl: -0.5, inflation: 1 } },
+    central: { label: "Central", ecarts: {} },
+    optimiste: { label: "Optimiste", ecarts: { valo: 1, loyerNu: 0.05, vacance: -0.5, irl: 0.5, inflation: -0.5 } }
+  };
+
+  function appliquerScenario(p, nom) {
+    const ec = SCENARIOS[nom].ecarts;
+    const q = Object.assign({}, p);
+    Object.keys(ec).forEach(k => { q[k] = k === "loyerNu" ? p[k] * (1 + ec[k]) : p[k] + ec[k]; });
+    q.vacance = Math.max(0, q.vacance);
+    return q;
+  }
+
+  function scenarios(p) {
+    return Object.keys(SCENARIOS).map(nom => {
+      const q = appliquerScenario(p, nom);
+      return { nom, label: SCENARIOS[nom].label, params: q, res: comparer(q, { sansComptant: true }) };
+    });
+  }
+
   // ---------- Contrôle des saisies ----------
 
   function valider(p) {
@@ -567,6 +730,7 @@
       if (brut > 0.12) alerte("loyerNu", `Rendement brut de ${pc(brut)} : très élevé, vérifiez le loyer ou le prix.`);
       else if (brut < 0.02) alerte("loyerNu", `Rendement brut de ${pc(brut)} : très faible, vérifiez le loyer ou le prix.`);
     }
+    if (p.tauxAlternatif < 0 || p.tauxAlternatif > 10) alerte("tauxAlternatif", "Rendement alternatif hors de la plage habituelle (0 à 10 % net).");
     if (p.valo > 4) alerte("valo", "Valorisation annuelle supérieure à 4 % : hypothèse optimiste sur 10 ans ou plus.");
     if (p.horizon < REGLES.jeanbrun.dureeEngagement) alerte("horizon", "Détention inférieure à 9 ans : l'engagement Jeanbrun n'est pas tenu.");
     if (p.typePret === "infine" && p.nanti <= 0) alerte("nanti", "Prêt in fine sans placement nanti : la banque en exige presque toujours un.");
@@ -576,6 +740,7 @@
 
   return {
     REGLES, REGIMES, pret, impotRevenu, tmi, impotSocietes, abattementIR, abattementPS, surtaxePV,
-    plusValueParticuliers, creerReport, jeanbrun, irr, simuler, comparer, tauxEffort, valider
+    plusValueParticuliers, creerReport, jeanbrun, irr, van, simuler, comparer, tauxEffort, valider,
+    SEUIL_SIGNIFICATIF, VARIABLES, SCENARIOS, verdict, suggestions, sensibilite, seuils, horizons, scenarios
   };
 });

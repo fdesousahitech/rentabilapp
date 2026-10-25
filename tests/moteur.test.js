@@ -19,7 +19,7 @@ const EXEMPLE = {
   situation: "couple", parts: 2, revenuImposable: 60000, revenusMensuels: 5000, creditsExistants: 0,
   regNu: "auto", regLmnp: "auto", durBati: 30, durTrav: 15, durMob: 7,
   jbCat: "inter", decote: 15, jbReint: true,
-  horizon: 15, valo: 1.5, fraisRevente: 4, sciDistrib: true
+  horizon: 15, valo: 1.5, fraisRevente: 4, sciDistrib: true, etalementTravaux: 1, tauxAlternatif: 3
 };
 const avec = changements => Object.assign({}, EXEMPLE, changements);
 
@@ -258,4 +258,73 @@ test("contrôle des saisies", () => {
   assert.ok(champs(avec({ differe: 240 })).includes("erreur:differe"));
   assert.ok(champs(avec({ loyerNu: 3000 })).includes("alerte:loyerNu"));
   assert.ok(champs(avec({ situation: "couple", parts: 1 })).includes("erreur:parts"));
+});
+
+// ---------- Aide à la décision ----------
+
+test("VAN : nulle au taux du TRI", () => {
+  proche(M.van([-100, 110], 0.10), 0, 1e-9);
+  proche(M.van([-100, 110], 0), 10, 1e-9);
+  const r = M.simuler("nu", EXEMPLE, "reel");
+  proche(M.van(r.flux, r.tri), 0, 0.01);
+});
+
+test("verdict : écart significatif ou non", () => {
+  const faux = (code, tri) => ({ code, tri, eligible: true, van: 0, tauxEffort: null });
+  const net = M.verdict([faux("nu", 0.040), faux("lmnp", 0.030)], { tauxAlternatif: 3 });
+  assert.equal(net.significatif, true);
+  assert.equal(net.meilleur, "nu");
+  const serre = M.verdict([faux("nu", 0.030), faux("lmnp", 0.028), faux("sciis", 0.010)], { tauxAlternatif: 3 });
+  assert.equal(serre.significatif, false);
+  assert.deepEqual(serre.egalite, ["nu", "lmnp"]);
+  assert.equal(serre.battuParPlacement, false);
+  assert.equal(M.verdict([faux("nu", 0.02)], { tauxAlternatif: 3 }).battuParPlacement, true);
+});
+
+test("étalement des travaux : moins de déficits perdus en location nue", () => {
+  const un = M.simuler("nu", avec({ etalementTravaux: 1 }), "reel");
+  const deux = M.simuler("nu", avec({ etalementTravaux: 2 }), "reel");
+  assert.ok(deux.years[1].deficitGlobal > 0, "déficit imputé la 2e année");
+  assert.ok(deux.enrichissement > un.enrichissement);
+  assert.ok(M.suggestions(EXEMPLE, M.comparer(EXEMPLE)).some(s => s.code === "nu"));
+  assert.equal(M.suggestions(avec({ etalementTravaux: 2 }), M.comparer(avec({ etalementTravaux: 2 }))).length, 0);
+});
+
+test("sensibilité : variables triées par influence décroissante, TRI de base cohérent", () => {
+  const s = M.sensibilite(EXEMPLE, "nu", "reel");
+  proche(s.base, M.simuler("nu", EXEMPLE, "reel").tri, 1e-12);
+  for (let i = 1; i < s.lignes.length; i++) assert.ok(s.lignes[i - 1].amplitude >= s.lignes[i].amplitude);
+  const valo = s.lignes.find(l => l.cle === "valo");
+  assert.ok(valo.triHaut > s.base && valo.triBas < s.base);
+  const taux = s.lignes.find(l => l.cle === "taux");
+  assert.ok(taux.triHaut < s.base, "un taux plus élevé réduit le TRI");
+});
+
+test("seuils : les valeurs trouvées atteignent la cible", () => {
+  const s = M.seuils(EXEMPLE, "nu", "reel");
+  assert.equal(s.prixMax.statut, "ok");
+  proche(M.simuler("nu", avec({ prix: s.prixMax.valeur }), "reel").tri, 0.03, 1e-4);
+  assert.equal(s.loyerMin.statut, "ok");
+  proche(M.simuler("nu", avec({ loyerNu: s.loyerMin.valeur }), "reel").cfMoyApres, 0, 0.5);
+  assert.equal(s.valoMin.statut, "ok");
+  proche(M.simuler("nu", avec({ valo: s.valoMin.valeur }), "reel").tri, 0.03, 1e-4);
+});
+
+test("durée de détention : TRI par horizon identique à une simulation directe", () => {
+  const h = M.horizons(EXEMPLE, 12);
+  assert.equal(h.points.length, 12);
+  const direct = M.comparer(avec({ horizon: 10 }), { sansComptant: true }).find(r => r.code === "lmnp").tri;
+  proche(h.points[9].tris.lmnp, direct, 1e-12);
+  const opt = h.optimum.lmnp;
+  h.points.forEach(pt => assert.ok(pt.tris.lmnp == null || pt.tris.lmnp <= opt.tri + 1e-12));
+});
+
+test("scénarios : prudent < central < optimiste", () => {
+  const sc = M.scenarios(EXEMPLE);
+  assert.deepEqual(sc.map(s => s.nom), ["prudent", "central", "optimiste"]);
+  M.REGIMES.forEach((R, i) => {
+    if (R.code === "jeanbrun") return;
+    assert.ok(sc[0].res[i].tri < sc[1].res[i].tri && sc[1].res[i].tri < sc[2].res[i].tri, R.code);
+  });
+  proche(sc[1].res[0].tri, M.comparer(EXEMPLE)[0].tri, 1e-12);
 });
