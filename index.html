@@ -63,7 +63,12 @@ body {
   padding-block: 24px 48px;
 }
 .wrap { max-width: 1440px; margin: 0 auto; display: grid; gap: 24px; }
-header { display: grid; gap: 6px; }
+header { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; flex-wrap: wrap; }
+.titles { display: grid; gap: 6px; min-width: 0; flex: 1 1 480px; }
+.export { display: grid; gap: 4px; justify-items: end; }
+button.primary { background: var(--accent); border-color: var(--accent); color: var(--surface); font-weight: 600; padding: 10px 16px; }
+button.primary:hover { filter: brightness(1.08); }
+button:disabled { opacity: 0.6; cursor: progress; }
 h1 { font-family: var(--font-display); font-weight: 700; font-size: clamp(24px, 3vw, 34px); line-height: 1.1; margin: 0; text-wrap: balance; letter-spacing: -0.01em; }
 .lede { color: var(--muted); max-width: 70ch; margin: 0; }
 h2 { font-family: var(--font-display); font-weight: 500; font-size: 19px; margin: 0; text-wrap: balance; }
@@ -145,8 +150,14 @@ tr.sep td { border-bottom: 0; padding-top: 14px; font-family: var(--font-body); 
 <body>
 <div class="wrap">
   <header>
+    <div class="titles">
     <h1>Comparateur fiscal locatif</h1>
     <p class="lede">Un même bien, cinq façons de le détenir : location nue, LMNP, SCI à l'IR, SCI à l'IS et dispositif Jeanbrun. Tous les coûts sont pris en compte, de l'acquisition à la revente, y compris la fiscalité de sortie. Les valeurs ci-dessous sont un exemple à remplacer par les vôtres.</p>
+    </div>
+    <div class="export">
+      <button type="button" class="primary" id="exportPdf">Exporter le rapport PDF</button>
+      <span class="hint" id="pdfStatus" role="status"></span>
+    </div>
   </header>
 
   <div class="layout">
@@ -808,13 +819,13 @@ tr.sep td { border-bottom: 0; padding-top: 14px; font-family: var(--font-body); 
     update();
   });
 
-  let last = null;
+  let last = null, lastP = null;
   function update() {
     const p = readParams();
     const res = run(p);
     const comptant = run(Object.assign({}, p, { apport: Infinity }));
     res.forEach((r, i) => { r.triComptant = comptant[i].tri; });
-    last = res;
+    last = res; lastP = p;
     renderJbInfo(p);
     renderFinInfo(p, res);
     renderSensibilite(p);
@@ -850,6 +861,291 @@ tr.sep td { border-bottom: 0; padding-top: 14px; font-family: var(--font-body); 
     const saved = JSON.parse(localStorage.getItem(STORE_KEY) || "null");
     if (saved) ids.forEach(id => { if (id in saved) { const el = document.getElementById(id); if (el.type === "checkbox") el.checked = saved[id]; else el.value = saved[id]; } });
   } catch (e) {}
+
+
+  // ---------- Export PDF ----------
+
+  const PDF_LIBS = [
+    "https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js",
+    "https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.2/dist/jspdf.plugin.autotable.min.js"
+  ];
+  const PDF = {
+    ink: [22, 32, 43], muted: [90, 103, 119], line: [216, 222, 230], soft: [243, 245, 248],
+    accent: [29, 78, 137], good: [29, 116, 72], goodBg: [225, 242, 232], bad: [179, 38, 30], warn: [138, 90, 0], warnBg: [251, 240, 217],
+    series: { nu: [29, 78, 137], lmnp: [192, 86, 26], sciir: [107, 75, 148], sciis: [34, 134, 122], jeanbrun: [165, 47, 107] }
+  };
+
+  function loadScript(src) {
+    return new Promise((resolve, reject) => {
+      const el = document.createElement("script");
+      el.src = src;
+      el.onload = resolve;
+      el.onerror = () => reject(new Error("chargement impossible : " + src));
+      document.head.appendChild(el);
+    });
+  }
+  async function loadPdfLibs() {
+    if (!(window.jspdf && window.jspdf.jsPDF)) await loadScript(PDF_LIBS[0]);
+    if (!window.jspdf.jsPDF.API.autoTable) await loadScript(PDF_LIBS[1]);
+    return window.jspdf.jsPDF;
+  }
+
+  // Les polices standard du PDF sont en WinAnsi : on remplace les espaces fines et signes absents
+  const txt = v => String(v == null ? "" : v)
+    .replace(/[   ]/g, " ").replace(/−/g, "-").replace(/≈/g, "env.")
+    .replace(/[‘’]/g, "'").replace(/\n{2,}/g, "\n").trim();
+
+  function tableFromDom(table) {
+    const head = Array.from(table.querySelectorAll("thead th")).map(th => txt(th.innerText));
+    const body = Array.from(table.querySelectorAll("tbody tr")).map(tr => {
+      if (tr.classList.contains("sep")) {
+        return [{ content: txt(tr.innerText).toUpperCase(), colSpan: head.length, styles: { halign: "left", fontStyle: "bold", textColor: PDF.muted, fontSize: 7, cellPadding: { top: 3, bottom: 1, left: 1.6, right: 1.6 } } }];
+      }
+      return Array.from(tr.children).map(td => {
+        const styles = {};
+        if (td.classList.contains("best")) { styles.fillColor = PDF.goodBg; styles.textColor = PDF.good; styles.fontStyle = "bold"; }
+        else if (td.classList.contains("neg")) styles.textColor = PDF.bad;
+        return { content: txt(td.innerText), styles };
+      });
+    });
+    return { head, body };
+  }
+
+  function pdfTable(doc, head, body, startY, extra) {
+    doc.autoTable(Object.assign({
+      head: [head], body, startY,
+      margin: { left: 14, right: 14, top: 16, bottom: 16 },
+      theme: "plain",
+      styles: { font: "helvetica", fontSize: 8, cellPadding: 1.6, textColor: PDF.ink, halign: "right", valign: "middle", lineColor: PDF.line, lineWidth: { bottom: 0.1 } },
+      headStyles: { fontStyle: "bold", textColor: PDF.muted, fontSize: 7.5, lineWidth: { bottom: 0.3 }, lineColor: PDF.ink },
+      columnStyles: { 0: { halign: "left" } }
+    }, extra || {}));
+    return doc.lastAutoTable.finalY;
+  }
+
+  function sectionTitle(doc, title, y) {
+    if (y > 180) { doc.addPage(); y = 18; }
+    doc.setFont("helvetica", "bold"); doc.setFontSize(12); doc.setTextColor(...PDF.ink);
+    doc.text(txt(title), 14, y);
+    return y + 4;
+  }
+
+  function pdfChart(doc, res, x0, y0, w, h) {
+    const series = res.filter(r => r.eligible).map(r => {
+      let c = 0;
+      return { r, pts: [0].concat(r.years.map(o => (c += o.cfApres))) };
+    });
+    const n = res[0].years.length;
+    const all = series.flatMap(s => s.pts);
+    let min = Math.min(0, ...all), max = Math.max(0, ...all);
+    if (max - min < 1) max = min + 1000;
+    const step = niceStep(max - min);
+    min = Math.floor(min / step) * step; max = Math.ceil(max / step) * step;
+    const L = x0 + 26, R = x0 + w, T = y0, B = y0 + h;
+    const x = t => L + (R - L) * t / n;
+    const y = v => T + (B - T) * (max - v) / (max - min);
+    doc.setFont("helvetica", "normal"); doc.setFontSize(7); doc.setTextColor(...PDF.muted);
+    for (let v = min; v <= max + step / 2; v += step) {
+      const zero = Math.abs(v) < step / 2;
+      doc.setDrawColor(...(zero ? PDF.muted : PDF.line)); doc.setLineWidth(zero ? 0.3 : 0.15);
+      doc.line(L, y(v), R, y(v));
+      doc.text(txt(fmt(v)), L - 2, y(v) + 1, { align: "right" });
+    }
+    const every = n > 20 ? 5 : n > 10 ? 2 : 1;
+    for (let t = 0; t <= n; t += every) doc.text(t === 0 ? "an 0" : String(t), x(t), B + 4, { align: "center" });
+    series.forEach(s => {
+      const col = PDF.series[s.r.code];
+      doc.setDrawColor(...col); doc.setLineWidth(0.6);
+      for (let t = 1; t < s.pts.length; t++) doc.line(x(t - 1), y(s.pts[t - 1]), x(t), y(s.pts[t]));
+      doc.setFillColor(...col); doc.circle(x(n), y(s.pts[n]), 0.8, "F");
+    });
+    let lx = L, ly = B + 10;
+    doc.setFontSize(8);
+    series.forEach(s => {
+      const label = REGIMES.find(R2 => R2.code === s.r.code).label + " " + txt(fmt(s.pts[n]));
+      doc.setFillColor(...PDF.series[s.r.code]); doc.circle(lx + 1, ly - 1, 1, "F");
+      doc.setTextColor(...PDF.ink); doc.text(label, lx + 3.5, ly);
+      lx += doc.getTextWidth(label) + 10;
+    });
+    return ly + 4;
+  }
+
+  function hypotheses() {
+    return Array.from(form.querySelectorAll("details.group")).map(g => {
+      const rows = [];
+      g.querySelectorAll(".field").forEach(f => {
+        if (f.closest("[hidden]")) return;
+        const label = f.querySelector("label");
+        const ctl = f.querySelector("input, select");
+        const name = txt(label.childNodes[0].textContent);
+        let val;
+        if (ctl.type === "checkbox") val = ctl.checked ? "Oui" : "Non";
+        else if (ctl.tagName === "SELECT") val = ctl.options[ctl.selectedIndex].text;
+        else { const u = f.querySelector(".u"); val = Number(ctl.value).toLocaleString("fr-FR") + (u ? " " + u.textContent : ""); }
+        rows.push([name, txt(val)]);
+      });
+      return { titre: txt(g.querySelector("summary").textContent), rows };
+    });
+  }
+
+  function buildPdf(jsPDF, p, res) {
+    const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
+    const W = 297, M = 14;
+    const date = new Date().toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" });
+
+    doc.setFont("helvetica", "bold"); doc.setFontSize(20); doc.setTextColor(...PDF.ink);
+    doc.text("Rapport de simulation locative", M, 20);
+    doc.setFont("helvetica", "normal"); doc.setFontSize(9.5); doc.setTextColor(...PDF.muted);
+    const pret = p.typePret === "infine" ? "prêt in fine" : "prêt amortissable" + (p.differe > 0 ? ", différé " + p.typeDiffere + " de " + p.differe + " mois" : "");
+    doc.text(txt(`Établi le ${date} · bien ${p.type} de ${fmt(p.prix)} · détention ${p.horizon} ans · ${pret} sur ${p.duree} ans à ${p.taux.toLocaleString("fr-FR")} % · TMI ${p.tmi} %`), M, 27);
+
+    // Indicateurs clés
+    const kpis = Array.from(document.querySelectorAll("#kpis .kpi"));
+    const kw = (W - 2 * M - 3 * 4) / 4;
+    kpis.forEach((k, i) => {
+      const x = M + i * (kw + 4);
+      doc.setFillColor(...PDF.soft); doc.roundedRect(x, 32, kw, 20, 1.5, 1.5, "F");
+      doc.setFontSize(7); doc.setTextColor(...PDF.muted); doc.text(txt(k.querySelector(".k").textContent).toUpperCase(), x + 4, 38);
+      doc.setFont("helvetica", "bold"); doc.setFontSize(13); doc.setTextColor(...PDF.ink); doc.text(txt(k.querySelector(".v").textContent), x + 4, 45);
+      doc.setFont("helvetica", "normal"); doc.setFontSize(7.5); doc.setTextColor(...PDF.muted);
+      doc.text(doc.splitTextToSize(txt(k.querySelector(".s").textContent), kw - 8)[0], x + 4, 49.5);
+    });
+    let y = 58;
+
+    const alerts = Array.from(document.querySelectorAll("#alerts li")).map(li => txt(li.textContent));
+    alerts.forEach(a => {
+      const lines = doc.splitTextToSize(a, W - 2 * M - 6);
+      doc.setFillColor(...PDF.warnBg); doc.roundedRect(M, y, W - 2 * M, lines.length * 4 + 3, 1, 1, "F");
+      doc.setFontSize(8.5); doc.setTextColor(...PDF.warn); doc.text(lines, M + 3, y + 4.5);
+      y += lines.length * 4 + 5;
+    });
+
+    y = sectionTitle(doc, "Synthèse sur la durée de détention", y + 4);
+    const synth = tableFromDom(document.getElementById("synth"));
+    synth.head[0] = "";
+    y = pdfTable(doc, synth.head, synth.body, y, { columnStyles: { 0: { halign: "left", cellWidth: 70 } } });
+
+    // Hypothèses sur trois colonnes
+    doc.addPage();
+    y = sectionTitle(doc, "Hypothèses retenues", 18);
+    const groupes = hypotheses();
+    const third = groupes.reduce((s, g) => s + g.rows.length + 1, 0) / 3;
+    const cols = [[], [], []];
+    let count = 0;
+    groupes.forEach(g => { cols[Math.min(2, Math.floor(count / third))].push(g); count += g.rows.length + 1; });
+    const colW = (W - 2 * M - 16) / 3;
+    let yMax = y;
+    const pageDebut = doc.getCurrentPageInfo().pageNumber;
+    let pageFin = pageDebut;
+    cols.forEach((gs, ci) => {
+      doc.setPage(pageDebut);
+      const body = [];
+      gs.forEach(g => {
+        body.push([{ content: g.titre.toUpperCase(), colSpan: 2, styles: { halign: "left", fontStyle: "bold", textColor: PDF.muted, fontSize: 7, cellPadding: { top: 3, bottom: 1, left: 1.6, right: 1.6 } } }]);
+        g.rows.forEach(r => body.push(r));
+      });
+      const left = M + ci * (colW + 8);
+      const end = pdfTable(doc, ["Paramètre", "Valeur"], body, y, { margin: { left, right: W - left - colW, top: 16, bottom: 16 }, tableWidth: colW, showHead: "firstPage", styles: { font: "helvetica", fontSize: 7.5, cellPadding: 1.05, textColor: PDF.ink, halign: "right", lineColor: PDF.line, lineWidth: { bottom: 0.1 } } });
+      const pg = doc.getCurrentPageInfo().pageNumber;
+      if (pg > pageFin) { pageFin = pg; yMax = end; } else if (pg === pageFin) yMax = Math.max(yMax, end);
+    });
+    doc.setPage(pageFin);
+    const fin = document.getElementById("finInfo").textContent;
+    if (fin) {
+      y = yMax + 6;
+      doc.setFont("helvetica", "normal"); doc.setFontSize(8.5); doc.setTextColor(...PDF.muted);
+      const lines = doc.splitTextToSize(txt(fin), W - 2 * M);
+      if (y + lines.length * 4 > 194) { doc.addPage(); y = 18; }
+      doc.text(lines, M, y);
+    }
+
+    // Effet de l'apport et trésorerie
+    doc.addPage();
+    y = sectionTitle(doc, "Effet de l'apport : TRI des fonds propres et trésorerie mensuelle moyenne après impôt", 18);
+    const sensi = tableFromDom(document.getElementById("sensi"));
+    y = pdfTable(doc, sensi.head, sensi.body, y, { columnStyles: { 0: { halign: "left", cellWidth: 40 } } });
+    y = sectionTitle(doc, "Trésorerie cumulée après impôt, hors revente", y + 10);
+    if (y + 90 > 196) { doc.addPage(); y = sectionTitle(doc, "Trésorerie cumulée après impôt, hors revente", 18); }
+    pdfChart(doc, res, M, y + 4, W - 2 * M, 72);
+
+    // Détail annuel par régime
+    res.forEach(r => {
+      const R = REGIMES.find(o => o.code === r.code);
+      doc.addPage();
+      y = sectionTitle(doc, `Détail annuel : ${R.label} (${r.regime})`, 18);
+      if (!r.eligible) {
+        doc.setFontSize(9); doc.setFont("helvetica", "normal"); doc.setTextColor(...PDF.muted);
+        doc.text(doc.splitTextToSize(txt(r.notes[0] || "Non éligible."), W - 2 * M), M, y + 4);
+        return;
+      }
+      const nanti = r.nanti > 0;
+      const head = ["Année", "Loyers", "Charges", "Intérêts et assurance", "Capital remboursé"].concat(nanti ? ["Placement débloqué"] : [], ["Amort. déduit", "Résultat fiscal", r.code === "sciis" ? "IS" : "Impôt", "Trésorerie avant impôt", "Trésorerie après impôt", "Capital restant dû"]);
+      const cell = v => ({ content: txt(fmt(v)), styles: v < -0.5 ? { textColor: PDF.bad } : {} });
+      const body = r.years.map(o => [String(o.y), cell(o.loyers), cell(o.charges), cell(o.interets), cell(o.capital)]
+        .concat(nanti ? [cell(o.deblocage)] : [], [cell(o.amort), cell(o.resultat), cell(o.impot), cell(o.cfAvant), cell(o.cfApres), cell(o.crd)]));
+      body.push([{ content: txt(`Revente : prix net ${fmt(r.venteNet)}, plus-value ${fmt(Math.max(0, r.pv))}, capital remboursé ${fmt(r.crdFinal)}, indemnités ${fmt(r.ira)}, impôt de sortie ${fmt(r.impotSortie)}` + (r.placementSortie > 0 ? `, placement récupéré ${fmt(r.placementSortie)}` : "") + `. Produit net : ${fmt(r.netSortie)}.`), colSpan: head.length, styles: { halign: "left", fontStyle: "bold" } }]);
+      y = pdfTable(doc, head, body, y, { styles: { font: "helvetica", fontSize: 7.5, cellPadding: 1.3, textColor: PDF.ink, halign: "right", lineColor: PDF.line, lineWidth: { bottom: 0.1 } } });
+      if (r.notes.length) {
+        doc.setFontSize(8); doc.setTextColor(...PDF.warn);
+        doc.text(doc.splitTextToSize(txt(r.notes.join(" ")), W - 2 * M), M, Math.min(y + 6, 192));
+      }
+    });
+
+    // Règles et limites
+    doc.addPage();
+    y = sectionTitle(doc, "Règles appliquées et limites", 18) + 2;
+    document.querySelectorAll(".notes p").forEach(par => {
+      const strong = par.querySelector("strong");
+      const titre = strong ? txt(strong.textContent) : "";
+      const corps = txt(par.textContent.replace(strong ? strong.textContent : "", ""));
+      doc.setFont("helvetica", "normal"); doc.setFontSize(8.5);
+      const lines = doc.splitTextToSize(corps, W - 2 * M);
+      if (y + 5 + lines.length * 3.8 > 194) { doc.addPage(); y = 18; }
+      if (titre) { doc.setFont("helvetica", "bold"); doc.setFontSize(9); doc.setTextColor(...PDF.ink); doc.text(titre, M, y); y += 4.5; }
+      doc.setFont("helvetica", "normal"); doc.setFontSize(8.5); doc.setTextColor(...PDF.muted);
+      doc.text(lines, M, y);
+      y += lines.length * 3.8 + 4;
+    });
+
+    const pages = doc.getNumberOfPages();
+    for (let i = 1; i <= pages; i++) {
+      doc.setPage(i);
+      doc.setFont("helvetica", "normal"); doc.setFontSize(7); doc.setTextColor(...PDF.muted);
+      doc.text("Comparateur fiscal locatif · simulation indicative, ne constitue pas un conseil fiscal", M, 203);
+      doc.text(`${i} / ${pages}`, W - M, 203, { align: "right" });
+    }
+    return doc;
+  }
+
+  const pdfBtn = document.getElementById("exportPdf");
+  const pdfStatus = document.getElementById("pdfStatus");
+  pdfBtn.addEventListener("click", async () => {
+    pdfBtn.disabled = true;
+    pdfStatus.textContent = "Préparation du PDF…";
+    try {
+      const jsPDF = await loadPdfLibs();
+      const doc = buildPdf(jsPDF, lastP, last);
+      const filename = `simulation-locative-${new Date().toISOString().slice(0, 10)}.pdf`;
+      const inViewer = !!(window.claude && typeof window.claude.use === "function");
+      const downloads = inViewer ? await window.claude.use("downloads") : null;
+      if (downloads) {
+        await downloads.save({ filename, data: doc.output("blob") });
+        pdfStatus.textContent = "PDF enregistré.";
+      } else if (inViewer) {
+        pdfStatus.textContent = "L'enregistrement de fichiers n'est pas disponible dans cette vue.";
+      } else {
+        doc.save(filename);
+        pdfStatus.textContent = "PDF téléchargé.";
+      }
+    } catch (e) {
+      if (e && e.code === "declined") pdfStatus.textContent = "Export annulé.";
+      else if (e && e.code === "rate_limited") pdfStatus.textContent = "Une demande d'enregistrement est déjà ouverte.";
+      else if (e && /chargement impossible/.test(e.message || "")) pdfStatus.textContent = "Le générateur de PDF n'a pas pu être chargé. Vérifiez la connexion puis réessayez.";
+      else pdfStatus.textContent = "L'export a échoué : " + ((e && (e.message || e.code)) || "erreur inconnue") + ".";
+    } finally {
+      pdfBtn.disabled = false;
+    }
+  });
 
   window.__simulateur = { run, readParams, simulate };
   syncPret();
