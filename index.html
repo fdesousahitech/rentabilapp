@@ -169,6 +169,10 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .kpi .s { font-size: 12.5px; color: var(--muted); line-height: 1.45; }
 .kpi.clic { cursor: pointer; border: 1px solid transparent; }
 .kpi.clic:hover, .kpi.clic:focus-visible { border-color: var(--accent); outline: none; }
+.kpi .mini { width: 100%; max-width: 260px; height: auto; margin-top: 6px; }
+.mini-impot { fill: var(--bad); }
+.mini-economie { fill: var(--good); }
+.mini-axe { stroke: var(--line); stroke-width: 1; }
 .ind-liste { list-style: none; margin: 6px 0 0; padding: 0; display: grid; gap: 7px; }
 .ind-liste li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 3px 10px; align-items: center; cursor: pointer; border-radius: 4px; padding: 2px 4px; }
 .ind-liste li:hover, .ind-liste li:focus-visible { background: var(--accent-soft); outline: none; }
@@ -268,7 +272,7 @@ td.sel, tr.sel td { box-shadow: inset 0 0 0 2px var(--accent) !important; }
   <header>
     <div class="titles">
     <h1>Comparateur fiscal locatif</h1>
-    <p class="lede">Un même bien, six fiscalités : LMNP micro-BIC ou réel, location nue micro-foncier ou réel, SCI à l'IR et SCI à l'IS. Comparez-les toutes ou étudiez directement celle de votre choix. Tous les coûts sont pris en compte, de l'acquisition à la revente, y compris la fiscalité de sortie. Les valeurs ci-dessous sont un exemple à remplacer par les vôtres.</p>
+    <p class="lede">Un même bien, six fiscalités : LMNP micro-BIC ou réel, location nue micro-foncier ou réel, SCI à l'IR et SCI à l'IS. Comparez-les toutes ou étudiez directement celle de votre choix, pour un logement comme pour des bureaux ou un local professionnel. Tous les coûts sont pris en compte, de l'acquisition à la revente, y compris la fiscalité de sortie. Les valeurs ci-dessous sont un exemple à remplacer par les vôtres.</p>
     <p class="hint" id="reglesVersion"></p>
     </div>
     <div class="export">
@@ -330,7 +334,7 @@ td.sel, tr.sel td { box-shadow: inset 0 0 0 2px var(--accent) !important; }
           <input type="hidden" id="longitude" value="" data-texte>
           <input type="hidden" id="precision" value="" data-texte>
           <div class="field" data-essentiel><label for="commune">Commune</label><div class="ctrl"><select id="commune" data-texte><option value="">—</option></select></div></div>
-          <div class="field" data-essentiel><label for="typeLogement">Type de logement</label><div class="ctrl"><select id="typeLogement"><option value="appartement">Appartement</option><option value="maison">Maison</option></select></div></div>
+          <div class="field" data-essentiel data-usages="habitation"><label for="typeLogement">Type de logement</label><div class="ctrl"><select id="typeLogement"><option value="appartement">Appartement</option><option value="maison">Maison</option></select></div></div>
           <div class="field" data-essentiel><label for="surface">Surface habitable</label><div class="ctrl"><input id="surface" type="number" step="1" min="0" value="45"><span class="u">m²</span></div></div>
         </div>
       </details>
@@ -338,6 +342,7 @@ td.sel, tr.sel td { box-shadow: inset 0 0 0 2px var(--accent) !important; }
       <details class="group essentiel" open>
         <summary>Bien et acquisition</summary>
         <div class="fields">
+          <div class="field" data-essentiel><label for="usage">Type d'investissement</label><div class="ctrl"><select id="usage"><option value="habitation">Logement</option><option value="professionnel">Bureaux ou local professionnel</option></select></div></div>
           <div class="field" data-essentiel><label for="type">Type de bien</label><div class="ctrl"><select id="type"><option value="ancien">Ancien</option><option value="neuf">Neuf (VEFA)</option></select></div></div>
           <div class="field" data-essentiel><label for="prix">Prix net vendeur</label><div class="ctrl"><input id="prix" type="number" step="1000" value="200000"><span class="u">€</span></div></div>
           <div class="field"><label for="tauxDmto">Droits de mutation du département<small>5 % dans la plupart des départements depuis 2025</small></label><div class="ctrl"><input id="tauxDmto" type="number" step="0.1" value="5"><span class="u">%</span></div></div>
@@ -385,6 +390,7 @@ td.sel, tr.sel td { box-shadow: inset 0 0 0 2px var(--accent) !important; }
       <details class="group">
         <summary>Charges annuelles</summary>
         <div class="fields">
+          <div class="field check" data-usages="professionnel"><label for="refacturation">Copropriété et taxe foncière refacturées au locataire<small>bail commercial ou professionnel</small></label><input id="refacturation" type="checkbox" checked></div>
           <div class="field"><label for="copro">Copropriété non récupérable</label><div class="ctrl"><input id="copro" type="number" step="50" value="800"><span class="u">€</span></div></div>
           <div class="field"><label for="tf">Taxe foncière</label><div class="ctrl"><input id="tf" type="number" step="50" value="1100"><span class="u">€</span></div></div>
           <div class="field"><label for="pno">Assurance PNO</label><div class="ctrl"><input id="pno" type="number" step="10" value="180"><span class="u">€</span></div></div>
@@ -528,6 +534,7 @@ td.sel, tr.sel td { box-shadow: inset 0 0 0 2px var(--accent) !important; }
           <p><strong>LMNP.</strong> Micro-BIC avec abattement de 50 % jusqu'à 77 700 € de recettes. Au réel, frais d'acquisition déduits la première année, amortissement du bâti, des travaux et du mobilier. L'amortissement ne peut pas créer de déficit : l'excédent est reporté sans limite de durée ; les déficits de charges sont reportables 10 ans. Le mobilier peut être renouvelé à la fin de chaque durée d'amortissement. Depuis la loi de finances 2025, les amortissements du bâti et des travaux déduits sont réintégrés dans le calcul de la plus-value. Au-delà de 23 000 € de recettes, le statut LMP peut s'appliquer : il n'est pas simulé.</p>
           <p><strong>SCI à l'IS.</strong> Toutes les charges, les frais d'acquisition et les amortissements sont déductibles ; les déficits sont reportables sans limite. IS à 15 % jusqu'à 42 500 € de bénéfice puis 25 %. La plus-value de cession est calculée sur la valeur nette comptable et imposée avec le résultat de la dernière année. Les flux annuels sont supposés transiter par le compte courant d'associé ; à la sortie, les bénéfices accumulés sont distribués et soumis à la flat tax.</p>
           <p><strong>Financement.</strong> Le crédit couvre le coût total de l'opération diminué de l'apport, avec des mensualités constantes et une assurance calculée sur le capital initial. Les intérêts, l'assurance et les frais de dossier sont déductibles au réel et à l'IS. À la revente, le capital restant dû est soldé, avec les indemnités de remboursement anticipé si l'option est cochée. En prêt in fine, seuls les intérêts et l'assurance sont payés chaque mois ; le placement nanti est versé à l'an 0 et débloqué au terme, ou récupéré à la revente. En différé total, les intérêts capitalisés sont déduits au fur et à mesure qu'ils courent : c'est exact en BIC et à l'IS, mais en revenus fonciers ils ne sont déductibles qu'une fois payés. Le TRI porte sur les fonds personnels ; le TRI en achat comptant reprend les mêmes hypothèses sans crédit.</p>
+          <p><strong>Bureaux et locaux professionnels.</strong> Loués nus, ils relèvent des revenus fonciers (micro-foncier ou réel) comme un logement, ou de la SCI à l'IR ou à l'IS. Le statut LMNP est réservé aux logements meublés et n'est donc pas proposé. Avec un bail commercial ou professionnel, la copropriété et la taxe foncière peuvent être refacturées au locataire. Non simulés : l'option pour la TVA sur les loyers, la taxe annuelle sur les bureaux en Île-de-France et dans certaines zones de Provence-Alpes-Côte d'Azur, et l'indemnité d'éviction du bail commercial.</p>
           <p><strong>Faisabilité bancaire.</strong> Taux d'endettement calculé comme les banques : (crédits en cours + nouvelle mensualité) / (revenus + 70 % des loyers), à comparer au plafond de 35 % et à la durée maximale de 25 ans (27 ans avec un différé dans le neuf ou avec travaux) fixés par le HCSF. Les banques peuvent déroger pour une partie de leurs dossiers.</p>
           <p><strong>Plus-value des particuliers.</strong> 19 % d'impôt et 17,2 % de prélèvements sociaux, abattements pour durée de détention à partir de la 6<sup>e</sup> année (exonération à 22 ans pour l'impôt, 30 ans pour les prélèvements sociaux), forfaits de 7,5 % pour les frais d'acquisition et de 15 % pour les travaux au-delà de 5 ans, surtaxe au-delà de 50 000 € avec lissage.</p>
           <p><strong>Limites.</strong> Un seul foyer fiscal détenant 100 % des parts, revenu du foyer constant, pas d'autres revenus fonciers, pas de statut LMP, pas d'IFI ni de contribution différentielle sur les hauts revenus. Ce simulateur ne remplace pas l'avis d'un conseiller fiscal.</p>
@@ -557,7 +564,7 @@ td.sel, tr.sel td { box-shadow: inset 0 0 0 2px var(--accent) !important; }
   const pastille = cle => `<span class="reg"><span class="dot" style="background:${FISC(cle).color}"></span>${FISC(cle).label}</span>`;
   // Fiscalités affichées : celle choisie, ou toutes en mode comparaison
   let actives = FISCALITES.map(F => F.cle);
-  const fiscalitesDe = p => p.fiscalite && FISC(p.fiscalite) ? [p.fiscalite] : FISCALITES.map(F => F.cle);
+  const fiscalitesDe = p => p.fiscalite && FISC(p.fiscalite) && Moteur.fiscalitesPour(p).includes(p.fiscalite) ? [p.fiscalite] : Moteur.fiscalitesPour(p);
 
   const form = document.getElementById("form");
   const ids = Array.from(form.querySelectorAll("input, select")).map(el => el.id);
@@ -640,7 +647,7 @@ td.sel, tr.sel td { box-shadow: inset 0 0 0 2px var(--accent) !important; }
     const te = r.tauxEffort;
     const el = document.getElementById("hcsfInfo");
     el.className = "hint" + (te ? (te.conforme ? " ok" : " ko") : "");
-    el.textContent = te ? `Taux d'endettement après projet : ${pct(te.taux)} (plafond 35 %, durée maximale ${te.dureeMax} ans) : ${te.conforme ? "finançable selon les règles HCSF." : "au-delà des règles HCSF, la banque devra utiliser sa marge de dérogation."}` : "";
+    el.textContent = te ? `Taux d'endettement après projet : ${pct(te.taux)} (plafond 35 %, durée maximale ${te.dureeMax} ans) : ${te.conforme ? "finançable selon les règles HCSF." : "au-delà des règles HCSF, la banque devra utiliser sa marge de dérogation."}` + (p.usage === "professionnel" ? " Ces règles visent le crédit au logement : valeur indicative pour un local professionnel." : "") : "";
   }
 
   // Apports testés : de 0 au comptant, en part du coût de la location nue
@@ -673,11 +680,11 @@ td.sel, tr.sel td { box-shadow: inset 0 0 0 2px var(--accent) !important; }
 
   // Une carte par indicateur : la valeur de la fiscalité étudiée, ou un classement de toutes en mode comparaison
   const INDICATEURS = [
-    { titre: "Impôts sur la durée", val: r => r.impots, fmt: v => fmt(v), sens: "min",
+    { titre: "Impôts par an", val: r => r.impotAnnuelMoyen, fmt: v => fmt(v) + "/an", sens: "min", annuel: true,
       sous: r => {
-        const loyers = r.years.reduce((s, o) => s + o.loyers, 0);
-        return [`dont ${fmt(r.impotSortie)} à la revente`, `soit ${fmt(r.impots / r.years.length / 12)} par mois en moyenne`, `${pct(r.impots / loyers)} des loyers encaissés`];
-      }, explique: "impots" },
+        const loyers = r.years.reduce((s, o) => s + o.loyers, 0) / r.years.length;
+        return [`en moyenne sur ${r.years.length} ans, soit ${pct(r.impotAnnuelMoyen / loyers)} des loyers`, `année 1 : ${fmt(r.impot1)}${r.impot1 < 0 ? " (économie d'impôt)" : ""} ; année la plus imposée : ${fmt(r.impotMax)}`, `à la revente, une seule fois : ${fmt(r.impotSortie)}`];
+      }, explique: "impotAnnuelMoyen" },
     { titre: "Rendement brut", val: r => r.rendBrut, fmt: pct, sens: "max",
       sous: () => ["loyers annuels / prix de revient", "avant charges, crédit et impôts"], explique: "rendBrut" },
     { titre: "Rendement net", val: r => r.rendNet, fmt: pct, sens: "max",
@@ -692,6 +699,18 @@ td.sel, tr.sel td { box-shadow: inset 0 0 0 2px var(--accent) !important; }
     return `<span class="barre"><span class="seg ${bon ? "plus" : "moins"}" style="left:${pos(a)};width:calc(${pos(b)} - ${pos(a)})"></span><span class="base" style="left:${pos(0)}"></span></span>`;
   }
 
+  // Impôt de chaque année en petites barres : au-dessus de l'axe un impôt, en dessous une économie
+  function miniImpots(r) {
+    const v = r.years.map(o => o.impot);
+    const max = Math.max(1, ...v.map(Math.abs));
+    const W = 220, H = 44, mid = H / 2, bw = W / v.length;
+    const barres = v.map((x, i) => {
+      const h = Math.abs(x) / max * (mid - 2);
+      return `<rect class="${x >= 0 ? "mini-impot" : "mini-economie"}" x="${(i * bw + 1).toFixed(1)}" y="${(x >= 0 ? mid - h : mid).toFixed(1)}" width="${Math.max(1, bw - 2).toFixed(1)}" height="${Math.max(0.5, h).toFixed(1)}"></rect>`;
+    }).join("");
+    return `<svg class="mini" viewBox="0 0 ${W} ${H}" role="img" aria-label="Impôt année par année"><line class="mini-axe" x1="0" x2="${W}" y1="${mid}" y2="${mid}"></line>${barres}</svg><span class="s">impôt année par année (rouge) ; économie d'impôt (vert)</span>`;
+  }
+
   function renderIndicateurs(p, res) {
     const ok = res.filter(r => r.eligible);
     const conteneur = document.getElementById("kpis");
@@ -702,12 +721,12 @@ td.sel, tr.sel td { box-shadow: inset 0 0 0 2px var(--accent) !important; }
       const top = tri[0];
       const tete = `<span class="k">${ind.titre}</span><span class="v">${ind.fmt(ind.val(top))}</span>`;
       if (ok.length === 1) {
-        return `<div class="kpi clic" tabindex="0" data-ind="${k}" data-cle="${top.cle}">${tete}<span class="s">${ind.sous(top).map(esc).join("<br>")}</span></div>`;
+        return `<div class="kpi clic" tabindex="0" data-ind="${k}" data-cle="${top.cle}">${tete}<span class="s">${ind.sous(top).map(esc).join("<br>")}</span>${ind.annuel ? miniImpots(top) : ""}</div>`;
       }
       const vals = tri.map(ind.val);
       const min = Math.min(0, ...vals), max = Math.max(0, ...vals);
       const ecart = Math.abs(ind.val(tri[tri.length - 1]) - ind.val(top));
-      const resume = ind.sens === "min" ? `${top.label}, la moins imposée ; écart de ${fmt(ecart)} avec la plus imposée` : `${top.label}, la meilleure`;
+      const resume = ind.sens === "min" ? `${top.label}, la moins imposée ; écart de ${fmt(ecart)} par an avec la plus imposée, hors impôt de revente` : `${top.label}, la meilleure`;
       const lignes = tri.map(r => {
         const v = ind.val(r);
         const bon = ind.sens === "min" ? v <= 0 : v >= 0;
@@ -755,9 +774,12 @@ td.sel, tr.sel td { box-shadow: inset 0 0 0 2px var(--accent) !important; }
     ["Capital restant dû", r => r.crdFinal, "eur", null, "crdFinal"],
     ["Indemnités de remboursement anticipé", r => r.ira, "eur", null, "ira"],
     ["Plus-value imposable", r => Math.max(0, r.pv), "eur", null, "pv"],
-    ["Impôt de sortie", r => r.impotSortie, "eur", "min", "impotSortie"],
-    ["sep", "Bilan"],
+    ["sep", "Impôts"],
+    ["Impôt de l'année 1", r => r.impot1, "eur", "min", "impot1"],
+    ["Impôt annuel moyen", r => r.impotAnnuelMoyen, "eur", "min", "impotAnnuelMoyen"],
+    ["Impôt de sortie, une fois à la revente", r => r.impotSortie, "eur", "min", "impotSortie"],
     ["Impôts cumulés, sortie comprise", r => r.impots, "eur", "min", "impots"],
+    ["sep", "Bilan"],
     ["Enrichissement net", r => r.enrichissement, "eur", "max", "enrichissement"],
     ["Fonds personnels investis", r => r.fondsInvestis, "eur", "min", "fondsInvestis"],
     ["Multiple des fonds investis", r => r.multiple, "x", "max", "multiple"],
@@ -777,7 +799,8 @@ td.sel, tr.sel td { box-shadow: inset 0 0 0 2px var(--accent) !important; }
     "Enrichissement net": "Ce que l'opération vous laisse en euros à la revente, après remboursement du crédit, impôts et récupération de vos mises de fonds.",
     "Multiple des fonds investis": "Sommes récupérées divisées par les sommes investies. 1,5 x : chaque euro investi en rapporte 1,5.",
     "Effort d'épargne cumulé maximal": "Le montant le plus élevé que vous aurez dû ajouter de votre poche, cumulé, au pire moment.",
-    "Impôt de sortie": "Impôt sur la plus-value à la revente, reprises fiscales et, en SCI à l'IS, flat tax sur les bénéfices distribués.",
+    "Impôt de sortie, une fois à la revente": "Impôt sur la plus-value à la revente, reprises fiscales et, en SCI à l'IS, flat tax sur les bénéfices distribués.",
+    "Impôt annuel moyen": "Impôt sur le revenu et prélèvements sociaux (ou IS) dus chaque année sur les loyers, en moyenne sur la détention. Négatif : économie d'impôt grâce au déficit.",
     "Coût du crédit sur la détention": "Intérêts, assurance, frais de dossier et indemnités de remboursement anticipé payés pendant la détention."
   };
 
@@ -1435,6 +1458,10 @@ td.sel, tr.sel td { box-shadow: inset 0 0 0 2px var(--accent) !important; }
     estimationCourante = null;
     actions.hidden = true;
     const msg = t => { corps.innerHTML = `<p class="hint">${t}</p>`; document.getElementById("marcheAlertes").innerHTML = ""; };
+    if (p && p.usage === "professionnel") {
+      const fn = Moteur.fraisNotaire(p.prix, p.type, p.tauxDmto / 100);
+      return msg(`Bureaux ou local professionnel : les données publiques utilisées ici (ventes DVF et Carte des loyers) portent sur les logements, il n'y a pas de référence de prix ni de loyer pour ce type de bien. Frais de notaire estimés : ${fmt(fn.total)}, soit ${pct(fn.taux)} du prix.`);
+    }
     if (marche.statut === "vide") return msg("Saisissez une commune ou un code postal et une surface pour situer le projet sur son marché : prix des ventes récentes, loyers d'annonce, évolution des prix et frais de notaire.");
     if (marche.statut === "invalide") return msg("Choisissez une commune dans la liste ou saisissez un code postal à 5 chiffres.");
     if (marche.statut === "chargement") return msg("Chargement des données du département…");
@@ -1684,15 +1711,24 @@ td.sel, tr.sel td { box-shadow: inset 0 0 0 2px var(--accent) !important; }
 
   // Masque les champs sans effet sur la fiscalité étudiée ; leurs valeurs sont conservées
   function syncFiscalite() {
-    const f = document.getElementById("fiscalite").value;
+    const usage = document.getElementById("usage").value;
+    const choix = document.getElementById("fiscalite");
+    const disponibles = Moteur.fiscalitesPour({ usage });
+    // Pas de LMNP pour un local professionnel : options retirées, retour à la comparaison si besoin
+    [...choix.options].forEach(o => { o.hidden = o.disabled = o.value !== "toutes" && !disponibles.includes(o.value); });
+    if (choix.value !== "toutes" && !disponibles.includes(choix.value)) choix.value = "toutes";
+    const f = choix.value;
+    const effectives = f === "toutes" ? disponibles : [f];
     let n = 0;
-    form.querySelectorAll("[data-fiscalites]").forEach(el => {
-      const masque = f !== "toutes" && !el.dataset.fiscalites.split(" ").includes(f);
+    form.querySelectorAll("[data-fiscalites], [data-usages]").forEach(el => {
+      const horsFiscalite = el.dataset.fiscalites && !el.dataset.fiscalites.split(" ").some(c => effectives.includes(c));
+      const horsUsage = el.dataset.usages && !el.dataset.usages.split(" ").includes(usage);
+      const masque = !!(horsFiscalite || horsUsage);
       el.classList.toggle("hors-fiscalite", masque);
-      if (masque && el.classList.contains("field")) n++;
+      if (masque && el.classList.contains("field") && horsFiscalite) n++;
     });
     majGroupes();
-    document.getElementById("fiscaliteInfo").textContent = n ? `${n} paramètre${n > 1 ? "s" : ""} masqué${n > 1 ? "s" : ""} : sans effet pour ${FISC(f).label}. Leurs valeurs sont conservées.` : "";
+    document.getElementById("fiscaliteInfo").textContent = (usage === "professionnel" ? "Local professionnel : le LMNP, réservé aux logements, n'est pas proposé. " : "") + (n ? `${n} paramètre${n > 1 ? "s" : ""} masqué${n > 1 ? "s" : ""} : sans effet pour ${f === "toutes" ? "ces fiscalités" : FISC(f).label}. Leurs valeurs sont conservées.` : "");
   }
 
   // Un bloc dont tous les champs sont masqués (fiscalité, mode rapide) disparaît entièrement

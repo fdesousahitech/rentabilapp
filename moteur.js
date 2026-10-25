@@ -269,7 +269,9 @@
       const gL = Math.pow(1 + p.irl / 100, y - 1);
       const gC = Math.pow(1 + p.inflation / 100, y - 1);
       const loyers = loyerMensuel * (12 - p.vacance) * gL;
-      const charges = (p.copro + p.tf + p.pno + p.entretien + fixesSpecifiques) * gC + loyers * (p.gestionPct + p.gliPct) / 100;
+      // Local professionnel sous bail commercial : copropriété et taxe foncière peuvent être refacturées au locataire
+      const refacture = p.usage === "professionnel" && p.refacturation ? 0 : p.copro + p.tf;
+      const charges = (refacture + p.pno + p.entretien + fixesSpecifiques) * gC + loyers * (p.gestionPct + p.gliPct) / 100;
       const interets = loan.interets[y - 1] || 0;
       const capital = loan.capital[y - 1] || 0;
       const verse = loan.verse[y - 1] || 0;
@@ -452,7 +454,8 @@
       rendNet: years.reduce((s, o) => s + (o.loyers - o.charges), 0) / H / cout,
       rendNetNet: years.reduce((s, o) => s + (o.loyers - o.charges - o.impot), 0) / H / cout,
       cfMoyAvant: sumCfAvant / H / 12, cfMoyApres: sumCfApres / H / 12, cf1Apres: y1.cfApres / 12,
-      impots, enrichissement: netSortie + sumCfApres - apport - nanti, tri,
+      impots, impot1: y1.impot, impotAnnuelMoyen: impotsAnnuels / H, impotMax: Math.max(...years.map(o => o.impot)),
+      enrichissement: netSortie + sumCfApres - apport - nanti, tri,
       van: vanAlt,
       reportsRestants: reportFoncier.solde() + reportBIC.solde()
     };
@@ -481,6 +484,8 @@
       ira: p.ira ? [`min(3 % × ${e(crdFinal)} ; 6 mois d'intérêts) = ${e(ira)}`] : ["Option désactivée."],
       pv: traceSortie, impotSortie: traceSortie,
       impots: [`Impôts annuels cumulés ${e(impotsAnnuels)} + impôt de sortie ${e(impotSortie)} = ${e(impots)}`],
+      impot1: [`Impôt de l'année 1 : ${e(y1.impot)}` + (y1.impot < 0 ? " (économie d'impôt)" : "")].concat(y1.detail.filter(l => /impôt|Impôt|IS/.test(l))),
+      impotAnnuelMoyen: [`Impôts annuels cumulés ${e(impotsAnnuels)} / ${H} ans = ${e(impotsAnnuels / H)} par an`, `Année la plus imposée : ${e(Math.max(...years.map(o => o.impot)))}`, `Hors impôt de sortie (${e(impotSortie)}, payé une fois à la revente)`],
       enrichissement: [`Produit net de revente ${e(netSortie)} + trésoreries après impôt ${e(sumCfApres)} − apport ${e(apport)}` + (nanti ? ` − placement nanti ${e(nanti)}` : "") + ` = ${e(res.enrichissement)}`],
       fondsInvestis: [`Apport ${e(apport)}` + (nanti ? ` + placement ${e(nanti)}` : "") + ` + efforts d'épargne annuels ${e(negatifs)} = ${e(fondsInvestis)}`],
       multiple: [`(Produit net ${e(netSortie)} + excédents annuels ${e(positifs)}) / fonds investis ${e(fondsInvestis)}`],
@@ -513,14 +518,24 @@
 
   // ---------- Comparaison des régimes ----------
 
+  // Fiscalités disponibles : pas de LMNP pour des bureaux ou un local professionnel
+  function fiscalitesPour(p) {
+    return FISCALITES.filter(F => !(p.usage === "professionnel" && F.code === "lmnp")).map(F => F.cle);
+  }
+
   // Simule les fiscalités demandées (toutes par défaut) ; un régime micro est signalé non applicable
   // quand les loyers dépassent son plafond
   function comparer(p, options) {
     const opts = options || {};
-    const liste = opts.fiscalites ? FISCALITES.filter(F => opts.fiscalites.includes(F.cle)) : FISCALITES;
+    const cles = opts.fiscalites || fiscalitesPour(p);
+    const liste = FISCALITES.filter(F => cles.includes(F.cle));
     const res = liste.map(F => {
       const r = simuler(F.code, p, F.mode);
       r.cle = F.cle; r.label = F.label;
+      if (F.code === "lmnp" && p.usage === "professionnel") {
+        r.eligible = false;
+        r.notes.push(`${F.label} : non applicable, le statut de loueur en meublé non professionnel est réservé aux logements.`);
+      }
       if (F.mode === "micro") {
         const plafond = F.code === "nu" ? REGLES.revenusFonciers.plafondMicro : REGLES.meubleNonProfessionnel.plafondMicro;
         if (r.years[0].loyers > plafond) {
@@ -878,7 +893,7 @@
   }
 
   return {
-    REGLES, REGIMES, FISCALITES, pret, impotRevenu, tmi, impotSocietes, abattementIR, abattementPS, surtaxePV,
+    REGLES, REGIMES, FISCALITES, fiscalitesPour, pret, impotRevenu, tmi, impotSocietes, abattementIR, abattementPS, surtaxePV,
     plusValueParticuliers, creerReport, irr, van, simuler, comparer, tauxEffort, valider,
     SEUIL_SIGNIFICATIF, VARIABLES, SCENARIOS, verdict, suggestions, sensibilite, seuils, horizons, scenarios,
     decomposition, syntheseBien, fraisNotaire, defautsSurface, estimationMarche, alertesMarche,

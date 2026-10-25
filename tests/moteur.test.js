@@ -463,3 +463,29 @@ test("LMNP micro-BIC : pas d'honoraires d'expert-comptable", () => {
   const reel = M.simuler("lmnp", EXEMPLE, "reel");
   proche(reel.years[0].charges - micro.years[0].charges, EXEMPLE.comptaLmnp, 0.01);
 });
+
+// ---------- Locaux professionnels et impôt annuel ----------
+
+test("bureaux : pas de LMNP, charges refacturées au locataire", () => {
+  const pro = avec({ usage: "professionnel", refacturation: true });
+  const res = M.comparer(pro);
+  assert.deepEqual(res.map(r => r.cle), ["nu-micro", "nu-reel", "sciir", "sciis"]);
+  assert.deepEqual(M.fiscalitesPour(pro), ["nu-micro", "nu-reel", "sciir", "sciis"]);
+  const lmnp = M.comparer(pro, { fiscalites: ["lmnp-reel"] })[0];
+  assert.equal(lmnp.eligible, false);
+  const sans = M.simuler("nu", avec({ usage: "professionnel", refacturation: false }), "reel");
+  const avecRefac = M.simuler("nu", pro, "reel");
+  proche(sans.years[0].charges - avecRefac.years[0].charges, EXEMPLE.copro + EXEMPLE.tf, 0.01);
+  // Pour un logement, l'option est sans effet
+  proche(M.simuler("nu", avec({ refacturation: true }), "reel").years[0].charges, M.simuler("nu", EXEMPLE, "reel").years[0].charges, 0.001);
+});
+
+test("impôt annuel : année 1, moyenne et maximum", () => {
+  M.comparer(EXEMPLE).forEach(r => {
+    const annuels = r.years.map(o => o.impot);
+    proche(r.impot1, annuels[0], 1e-9, r.cle);
+    proche(r.impotAnnuelMoyen, annuels.reduce((s, v) => s + v, 0) / annuels.length, 1e-6, r.cle);
+    proche(r.impotMax, Math.max(...annuels), 1e-9, r.cle);
+    proche(r.impotAnnuelMoyen * annuels.length + r.impotSortie, r.impots, 0.01, r.cle);
+  });
+});
