@@ -1,5 +1,5 @@
 {
-  "genereLe": "2026-10-25T14:33:03.463Z",
+  "genereLe": "2026-10-25T14:35:11.818Z",
   "departements": [
     "01",
     "02",
@@ -257,7 +257,13 @@
       "depcode",
       "street",
       "_type"
-    ]
+    ],
+    "exemple": {
+      "label": "20 Avenue de Ségur 75007 Paris",
+      "postcode": "75007",
+      "citycode": "75107",
+      "type": "housenumber"
+    }
   },
   "couverture": {
     "communes": 33383,
